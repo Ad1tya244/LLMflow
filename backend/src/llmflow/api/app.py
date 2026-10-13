@@ -31,6 +31,7 @@ from llmflow.core.ratelimit import SlidingWindowLimiter
 from llmflow.providers.base import Provider
 from llmflow.providers.openai_compat import OpenAICompatibleProvider
 from llmflow.providers.quota import QuotaTracker
+from llmflow.routing.config import load_router_params
 from llmflow.schemas import ChatRequest
 from llmflow.security.vault import KeyVault, VaultError
 from llmflow.service import AUTO_MODEL, Gateway, RouteMeta, Scope
@@ -167,6 +168,7 @@ def create_app(
         app.state.gateway = Gateway(
             cat, enabled, built, QuotaTracker(), usage,
             budget=budget, cache=cache, max_attempts=settings.max_attempts,
+            router_params=load_router_params(settings.routing_config_path),
         )  # fmt: skip
         app.state.usage = usage
         if not enabled:
@@ -235,7 +237,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_list,
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["authorization", "content-type", "x-llmflow-csrf"],
         allow_credentials=True,
         expose_headers=_EXPOSED_HEADERS,

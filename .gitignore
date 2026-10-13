@@ -45,9 +45,22 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 .coverage
+coverage/
 htmlcov/
+.nyc_output/
+.cache/
 *.log
 npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Backups and scratch files
+# ---------------------------------------------------------------------------
+*.bak
+*.orig
+*.rej
+*.tmp
 
 # ---------------------------------------------------------------------------
 # Editor, OS and assistant tooling local state

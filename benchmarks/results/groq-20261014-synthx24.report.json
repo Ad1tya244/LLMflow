@@ -1,0 +1,191 @@
+{
+  "label": "MEASURED",
+  "notes": [],
+  "generated_at": "2026-10-13T21:01:01+00:00",
+  "suite": "synthx24.jsonl",
+  "items": 24,
+  "models": {
+    "groq-gpt-oss-20b": {
+      "upstream": "openai/gpt-oss-20b",
+      "tier": "small",
+      "price_in": 0.075,
+      "price_out": 0.3
+    },
+    "groq-qwen3.8-27b": {
+      "upstream": "qwen/qwen3.8-27b",
+      "tier": "medium",
+      "price_in": 0.29,
+      "price_out": 0.59
+    },
+    "groq-gpt-oss-120b": {
+      "upstream": "openai/gpt-oss-120b",
+      "tier": "large",
+      "price_in": 0.15,
+      "price_out": 0.6
+    },
+    "openai-gpt-4o-mini": {
+      "upstream": "gpt-4o-mini",
+      "tier": "small",
+      "price_in": 0.15,
+      "price_out": 0.6
+    },
+    "openai-gpt-4o": {
+      "upstream": "gpt-4o",
+      "tier": "large",
+      "price_in": 2.5,
+      "price_out": 10.0
+    }
+  },
+  "strategies": {
+    "always-large": {
+      "description": "always groq-gpt-oss-120b",
+      "n": 24,
+      "passed": 23,
+      "accuracy": 0.9583333333333334,
+      "accuracy_ci95": [
+        0.7975777375115778,
+        0.992606734645195
+      ],
+      "failures": 0,
+      "fallbacks": 0,
+      "retries": 0,
+      "latency_ms_mean": 3470.5125000000003,
+      "latency_ms_p50": 2819.1,
+      "latency_ms_p95": 7351.5,
+      "prompt_tokens": 3252,
+      "completion_tokens": 29960,
+      "shadow_cost_usd": 0.0184638,
+      "cost_per_correct_usd": 0.0008027739130434782,
+      "tier_mix": {
+        "large": 24
+      },
+      "models_used": {
+        "groq-gpt-oss-120b": 24
+      },
+      "by_difficulty": {
+        "xhard": {
+          "n": 24,
+          "accuracy": 0.9583333333333334
+        }
+      },
+      "by_category": {
+        "xbinary": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xchain": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xkth": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xletters": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xmodpow": {
+          "n": 3,
+          "accuracy": 0.6666666666666666
+        },
+        "xmult": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xorder": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xweekday": {
+          "n": 3,
+          "accuracy": 1.0
+        }
+      },
+      "accuracy_delta_vs_large_pts": 0.0,
+      "cost_saving_vs_large_pct": 0.0,
+      "latency_p50_delta_vs_large_pct": 0.0
+    },
+    "always-cheapest": {
+      "description": "always groq-gpt-oss-20b",
+      "n": 24,
+      "passed": 17,
+      "accuracy": 0.7083333333333334,
+      "accuracy_ci95": [
+        0.508319363412903,
+        0.8508553966583573
+      ],
+      "failures": 0,
+      "fallbacks": 0,
+      "retries": 0,
+      "latency_ms_mean": 2914.0916666666667,
+      "latency_ms_p50": 2542.0,
+      "latency_ms_p95": 4994.2,
+      "prompt_tokens": 3252,
+      "completion_tokens": 48227,
+      "shadow_cost_usd": 0.014712,
+      "cost_per_correct_usd": 0.0008654117647058823,
+      "tier_mix": {
+        "small": 24
+      },
+      "models_used": {
+        "groq-gpt-oss-20b": 24
+      },
+      "by_difficulty": {
+        "xhard": {
+          "n": 24,
+          "accuracy": 0.7083333333333334
+        }
+      },
+      "by_category": {
+        "xbinary": {
+          "n": 3,
+          "accuracy": 0.3333333333333333
+        },
+        "xchain": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xkth": {
+          "n": 3,
+          "accuracy": 0.3333333333333333
+        },
+        "xletters": {
+          "n": 3,
+          "accuracy": 0.6666666666666666
+        },
+        "xmodpow": {
+          "n": 3,
+          "accuracy": 0.6666666666666666
+        },
+        "xmult": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xorder": {
+          "n": 3,
+          "accuracy": 1.0
+        },
+        "xweekday": {
+          "n": 3,
+          "accuracy": 0.6666666666666666
+        }
+      },
+      "accuracy_delta_vs_large_pts": -25.0,
+      "cost_saving_vs_large_pct": 20.319760829298406,
+      "latency_p50_delta_vs_large_pct": -9.829378170338043
+    }
+  },
+  "suggested_quality_priors": {
+    "groq-gpt-oss-120b": {
+      "n": 24,
+      "accuracy": 0.9583333333333334,
+      "current_prior": 0.8
+    },
+    "groq-gpt-oss-20b": {
+      "n": 24,
+      "accuracy": 0.7083333333333334,
+      "current_prior": 0.5
+    }
+  }
+}

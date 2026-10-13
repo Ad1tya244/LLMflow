@@ -129,7 +129,9 @@ Then open the dashboard: **Overview** (traffic, cost vs. largest model, cache ra
 ```bash
 npm test             # backend (pytest) + dashboard (vitest)
 npm run check        # ruff, mypy --strict, tsc
-npm run bench        # 220 real calls, paced to Groq's limits; resumable; writes benchmarks/results/
+npm run bench        # round-1 suite: 220 real calls, paced to Groq's limits; resumable
+# round 2 (harder suites + router evaluation): see benchmarks/README.md
+#   python -m llmflow.bench generate | run --suite ... | eval-router --lift [--calibrate]
 ```
 
 Bench results appear on the dashboard's **Benchmarks** page and in `benchmarks/results/*.report.md`.

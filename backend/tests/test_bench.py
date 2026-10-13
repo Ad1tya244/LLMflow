@@ -273,3 +273,148 @@ def test_rescore_skips_truncated_responses_and_reports_real_changes() -> None:
     assert rows[0]["passed"] is True and len(changes) == 1
     assert rows[0]["rescored"] == "False -> True"
     assert rows[1]["passed"] is True  # truncated: original verdict kept
+
+
+# --- suite generation and router evaluation --------------------------------------------------
+
+
+def test_synthetic_generator_is_deterministic_and_answers_are_correct() -> None:
+    import re
+    from datetime import date, timedelta
+
+    from llmflow.bench.generate import synthetic_items
+
+    a, b = synthetic_items(32, seed=3), synthetic_items(32, seed=3)
+    assert a == b and a != synthetic_items(32, seed=4)
+    assert len({i["id"] for i in a}) == 32
+    seen_levels = {i["difficulty"] for i in a}
+    assert seen_levels == {"easy", "medium", "hard"}
+    for it in a:  # recompute each answer independently from the prompt text
+        text, chk = it["prompt"].split("\n\n")[0], it["check"]
+        if it["category"] == "mult":
+            x, y = map(int, re.findall(r"\d+", text))
+            assert chk["value"] == x * y
+        elif it["category"] == "chain":
+            a1, b1, c1, d1, e1 = map(int, re.findall(r"\d+", text))
+            assert chk["value"] == (a1 * b1 + c1) - d1 * e1
+        elif it["category"] == "letters":
+            ch = re.search(r"letter '(.)'", text).group(1)  # type: ignore[union-attr]
+            s = re.search(r'string "(.*)"', text).group(1)  # type: ignore[union-attr]
+            assert chk["value"] == s.count(ch)
+        elif it["category"] == "weekday":
+            d0 = date.fromisoformat(re.search(r"\d{4}-\d\d-\d\d", text).group(0))  # type: ignore[union-attr]
+            n = int(re.search(r"(\d+) days from today", text).group(1))  # type: ignore[union-attr]
+            want = (d0 + timedelta(days=n)).strftime("%A").lower()
+            assert chk["accept"] == [want]
+        elif it["category"] == "binary":
+            n = int(re.search(r"number (\d+)", text).group(1))  # type: ignore[union-attr]
+            assert chk["accept"] == [format(n, "b")]
+        elif it["category"] == "modpow":
+            bb, ee, mm = map(int, re.findall(r"\d+", text))
+            assert chk["value"] == pow(bb, ee, mm)
+
+
+def test_gsm8k_sampling_uses_reference_answers(tmp_path: Path) -> None:
+    from llmflow.bench.generate import gsm8k_items
+
+    src = tmp_path / "g.jsonl"
+    rows = [{"question": f"Q{i}?", "answer": f"step {i}\n#### {i * 10 + 1:,}"} for i in range(1, 8)]
+    src.write_text("\n".join(json.dumps(r) for r in rows))
+    items = gsm8k_items(src, 4, seed=1)
+    assert len(items) == 4 and all(i["check"]["type"] == "numeric" for i in items)
+    assert {i["check"]["value"] for i in items} <= {i * 10 + 1 for i in range(1, 8)}
+
+
+def _eval_items(small_pass: list[bool], large_pass: list[bool], difficulty: list[str]) -> list[Any]:
+    from llmflow.bench.router_eval import EvalItem, Outcome
+    from llmflow.routing.analyzer import analyze as _an
+    from llmflow.schemas import ChatRequest, Message
+
+    items = []
+    for i, (sp, lp, text) in enumerate(zip(small_pass, large_pass, difficulty, strict=True)):
+        it = EvalItem(
+            f"s:{i}", "s", "x", _an(ChatRequest(messages=[Message(role="user", content=text)]))
+        )
+        it.outcomes = {"small": Outcome(sp, 1.0), "large": Outcome(lp, 10.0)}
+        items.append(it)
+    return items
+
+
+def test_replay_oracle_and_escalation_metrics() -> None:
+    from llmflow.bench.router_eval import auc, fixed, oracle, replay
+    from llmflow.routing.policy import RouterParams
+
+    easy, hard = "What is 2+2?", "Analyze and compare step by step ```code``` derive the equation"
+    items = _eval_items(
+        [True, True, False, False], [True, True, True, False], [easy, easy, hard, hard]
+    )
+    cands = [model("small", Tier.SMALL, 0.5, 0.1), model("large", Tier.LARGE, 0.9, 1.0)]
+    assert fixed(items, "large").accuracy == 0.75
+    assert oracle(items).accuracy == 0.75 and oracle(items).cost == 1 + 1 + 10 + 1
+    # default-like params: easy -> small, hard -> large
+    p = RouterParams(0.0, 0.3, 0.5, 0.9, "t")
+    r = replay(items, cands, "small", "large", p)
+    assert r.share_large == 0.5 and r.escalation_recall == 1.0 and r.escalation_precision == 0.5
+    assert auc([0.0, 0.0, 0.9, 0.9], [False, False, True, False]) == pytest.approx(2.5 / 3)
+    assert auc([0.1, 0.2], [False, False]) is None
+
+
+def test_calibration_picks_cheapest_params_meeting_the_tolerance_and_reports_holdout() -> None:
+    from llmflow.bench.router_eval import calibrate
+
+    easy, hard = "What is 2+2?", "Analyze and compare step by step ```code``` derive the equation"
+    n = 40
+    small_pass = [i % 2 == 0 for i in range(n)]  # small fails on every 'hard' item
+    texts = [easy if i % 2 == 0 else hard for i in range(n)]
+    items = _eval_items(small_pass, [True] * n, texts)
+    for i, it in enumerate(items):
+        it.key = f"s:{i}"
+    cands = [model("small", Tier.SMALL, 0.5, 0.1), model("large", Tier.LARGE, 0.9, 1.0)]
+    cal = calibrate(items, cands, "small", "large", tolerance=0.0, stamp="test")
+    assert cal.params.version == "calibrated-test"
+    assert (
+        cal.train.accuracy == 1.0 and cal.holdout.accuracy == 1.0
+    )  # escalates exactly the hard ones
+    assert 0 < cal.holdout.share_large < 1  # and does not send everything to the large model
+    assert len(cal.frontier) == 61
+
+
+def test_routing_config_loader_validates(tmp_path: Path) -> None:
+    from llmflow.routing.config import RoutingConfigError, load_router_params
+    from llmflow.routing.policy import DEFAULT_PARAMS
+
+    assert load_router_params(tmp_path / "missing.json") == DEFAULT_PARAMS
+    good = tmp_path / "r.json"
+    good.write_text(
+        json.dumps(
+            {
+                "version": "v1",
+                "params": {"base": {"low": 0.1, "balanced": 0.2, "high": 0.4}, "span": 0.6},
+            }
+        )
+    )
+    assert load_router_params(good).base_balanced == 0.2
+    for bad in (
+        {
+            "version": "v",
+            "params": {"base": {"low": 0.5, "balanced": 0.2, "high": 0.4}, "span": 0.5},
+        },
+        {"version": "v", "params": {"base": {"low": 0.1, "balanced": 0.2, "high": 4}, "span": 0.5}},
+        {"params": {}},
+    ):
+        p = tmp_path / "bad.json"
+        p.write_text(json.dumps(bad))
+        with pytest.raises(RoutingConfigError):
+            load_router_params(p)
+    p.write_text("not json")
+    with pytest.raises(RoutingConfigError):
+        load_router_params(p)
+
+
+def test_lift_table_flags_a_signal_free_policy() -> None:
+    from llmflow.bench.router_eval import lift_table
+
+    easy = "What is 2+2?"
+    items = _eval_items([True] * 10, [True] * 10, [easy] * 10)  # identical items: no way to rank
+    cands = [model("small", Tier.SMALL, 0.5, 0.1), model("large", Tier.LARGE, 0.9, 1.0)]
+    assert all(abs(r["lift"]) < 1e-9 for r in lift_table(items, cands, "small", "large"))

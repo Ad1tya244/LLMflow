@@ -80,8 +80,11 @@ async function send(
       },
     });
   } catch {
+    // fetch only throws before any response: the server is down, still starting, or the browser
+    // blocked the request (for example a CORS policy that does not allow the method).
     throw new ApiError(
-      "Cannot reach the gateway. It may be starting up (free-tier instances sleep when idle).",
+      "The request did not reach the gateway. It may be starting up, or the browser blocked it; " +
+        "if this persists, check that the API is running and allows this dashboard's origin.",
       0,
       "network",
     );

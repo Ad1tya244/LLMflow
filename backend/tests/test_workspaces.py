@@ -756,3 +756,27 @@ def test_disabling_mfa_needs_password_and_a_current_code(env: Env, people: list[
         )
     actions = {e["action"] for e in p.client.get("/account/audit", headers=p.h).json()["events"]}
     assert {"mfa.enabled", "mfa.disabled"} <= actions
+
+
+def test_cors_preflight_allows_every_method_the_dashboard_uses(env: Env) -> None:
+    """Regression: saving a provider key is a PUT. If CORS does not allow it the browser blocks
+    the request and the dashboard can only say it cannot reach the gateway."""
+    for method, path in (
+        ("GET", "/account"),
+        ("POST", "/account/api-keys"),
+        ("PUT", "/account/provider-keys/p1"),
+        ("DELETE", "/account/api-keys/k_x"),
+        ("POST", "/auth/login"),
+    ):
+        r = env.c.options(
+            path,
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": method,
+                "Access-Control-Request-Headers": "content-type,x-llmflow-csrf",
+            },
+        )
+        assert r.status_code == 200, (method, path, r.text)
+        assert method in r.headers["access-control-allow-methods"]
+        assert r.headers["access-control-allow-origin"] == "http://localhost:5173"
+        assert r.headers["access-control-allow-credentials"] == "true"

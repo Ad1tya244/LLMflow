@@ -1,0 +1,48 @@
+# Router evaluation by counterfactual replay (REPLAY, not a live run)
+# Generated 2026-10-13T21:02Z from measured fixed-model outcomes in benchmarks/results/groq-20261014-*.jsonl
+# No model was trained or run locally; calibration is a one-parameter search by counting.
+
+################ analyzer v1 ################
+analyzer: v1
+items: 96  small=groq-gpt-oss-20b  large=groq-gpt-oss-120b
+needs-large items (small fails, large passes): 9
+difficulty-score AUC for 'needs large': 0.589  (0.5 = no signal)
+
+always-small : acc  89.6%  cost $0.02499  large   0%  escal. recall    -  precision    -  (n=96)
+always-large : acc  99.0%  cost $0.03794  large   0%  escal. recall    -  precision    -  (n=96)
+oracle       : acc  99.0%  cost $0.02419  large   0%  escal. recall    -  precision    -  (n=96)
+router (default, balanced): acc  89.6%  cost $0.02499  large   0%  escal. recall   0%  precision    -  (n=96)
+router (default, high)    : acc  99.0%  cost $0.03794  large 100%  escal. recall 100%  precision   9%  (n=96)
+
+lift over random escalation (same share sent to the large model):
+  base  share_large  accuracy  random-mix  lift
+  0.00          0%     89.6%       89.6%   +0.0 pts
+  0.34         25%     92.7%       91.9%   +0.8 pts
+  0.44        100%     99.0%       99.0%   +0.0 pts
+
+################ analyzer v2 ################
+analyzer: v2
+items: 96  small=groq-gpt-oss-20b  large=groq-gpt-oss-120b
+needs-large items (small fails, large passes): 9
+difficulty-score AUC for 'needs large': 0.537  (0.5 = no signal)
+
+always-small : acc  89.6%  cost $0.02499  large   0%  escal. recall    -  precision    -  (n=96)
+always-large : acc  99.0%  cost $0.03794  large   0%  escal. recall    -  precision    -  (n=96)
+oracle       : acc  99.0%  cost $0.02419  large   0%  escal. recall    -  precision    -  (n=96)
+router (default, balanced): acc  89.6%  cost $0.02499  large   0%  escal. recall   0%  precision    -  (n=96)
+router (default, high)    : acc  99.0%  cost $0.03794  large 100%  escal. recall 100%  precision   9%  (n=96)
+
+lift over random escalation (same share sent to the large model):
+  base  share_large  accuracy  random-mix  lift
+  0.00          0%     89.6%       89.6%   +0.0 pts
+  0.36         16%     89.6%       91.0%   -1.5 pts
+  0.38         18%     89.6%       91.2%   -1.7 pts
+  0.40         27%     93.8%       92.1%   +1.6 pts
+  0.42         45%     94.8%       93.8%   +1.0 pts
+  0.44         83%     97.9%       97.4%   +0.5 pts
+  0.46        100%     99.0%       99.0%   +0.0 pts
+
+calibration (tolerance 2 pts, split by suite ['gsm8k', 'synth']):
+  chosen base_balanced=0.43
+  train   : acc  98.6%  cost $0.01658  large  62%  escal. recall  67%  precision   4%  (n=72)
+  holdout : acc  91.7%  cost $0.01764  large  75%  escal. recall  83%  precision  28%  (n=24)

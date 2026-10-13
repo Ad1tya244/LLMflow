@@ -16,7 +16,7 @@ from llmflow.core.errors import GatewayError, ProviderError, ProviderErrorKind
 from llmflow.providers.base import Provider
 from llmflow.providers.quota import QuotaTracker
 from llmflow.routing.analyzer import analyze
-from llmflow.routing.policy import RoutePlan, plan_route
+from llmflow.routing.policy import DEFAULT_PARAMS, RoutePlan, RouterParams, plan_route
 from llmflow.schemas import ChatRequest, Usage
 from llmflow.storage.usage import RequestLog, UsageRepo
 
@@ -77,6 +77,7 @@ class Gateway:
         budget: BudgetGuard | None = None,
         cache: ResponseCache | None = None,
         max_attempts: int = 3,
+        router_params: RouterParams = DEFAULT_PARAMS,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._catalog = catalog
@@ -88,6 +89,7 @@ class Gateway:
         self._budget = budget if budget is not None else BudgetGuard(None, None)
         self._cache = cache if cache is not None else ResponseCache(0, 1)
         self._max_attempts = max_attempts
+        self._params = router_params
         self._clock = clock
         self._untrusted = frozenset(p.id for p in catalog.providers.values() if p.trains_on_data)
 
@@ -133,6 +135,7 @@ class Gateway:
             strict_privacy=opts.privacy == "strict",
             untrusted_providers=self._untrusted,
             max_tokens=request.max_tokens,
+            params=self._params,
         )
         if request.model != AUTO_MODEL:
             pinned = next((m for m in scope.enabled if m.id == request.model), None)

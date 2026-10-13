@@ -16,9 +16,30 @@ from llmflow.routing.analyzer import Analysis
 
 Quality = Literal["low", "balanced", "high"]
 
-_BASE_QUALITY: dict[Quality, float] = {"low": 0.2, "balanced": 0.3, "high": 0.5}
-_DIFFICULTY_SPAN = 0.5
 _DEFAULT_COMPLETION_TOKENS = 256
+
+
+@dataclass(frozen=True, slots=True)
+class RouterParams:
+    """Tunable constants of the routing policy: ``required = base[quality] + span * difficulty``.
+
+    The defaults are hand-set. ``python -m llmflow.bench calibrate`` can produce a versioned
+    file (``config/routing.json``) chosen from measured outcomes; see ``load_router_params``.
+    """
+
+    base_low: float = 0.2
+    base_balanced: float = 0.3
+    base_high: float = 0.5
+    span: float = 0.5
+    version: str = "default"
+
+    def base(self, quality: Quality) -> float:
+        return {"low": self.base_low, "balanced": self.base_balanced, "high": self.base_high}[
+            quality
+        ]
+
+
+DEFAULT_PARAMS = RouterParams()
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,8 +50,10 @@ class RoutePlan:
     degraded: bool = False
 
 
-def required_quality(difficulty: float, quality: Quality) -> float:
-    return min(1.0, _BASE_QUALITY[quality] + difficulty * _DIFFICULTY_SPAN)
+def required_quality(
+    difficulty: float, quality: Quality, params: RouterParams = DEFAULT_PARAMS
+) -> float:
+    return min(1.0, params.base(quality) + difficulty * params.span)
 
 
 def plan_route(
@@ -42,8 +65,9 @@ def plan_route(
     strict_privacy: bool = False,
     untrusted_providers: frozenset[str] = frozenset(),
     max_tokens: int | None = None,
+    params: RouterParams = DEFAULT_PARAMS,
 ) -> RoutePlan:
-    needed = required_quality(analysis.difficulty, quality)
+    needed = required_quality(analysis.difficulty, quality, params)
     completion = max_tokens or _DEFAULT_COMPLETION_TOKENS
 
     eligible = [

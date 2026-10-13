@@ -1,7 +1,7 @@
 # LLMFlow
 
-**An OpenAI-compatible LLM gateway that routes each request to the cheapest model likely to answer
-it well, using each user's own provider keys.**
+**An OpenAI-compatible LLM gateway that routes each request to the cheapest model that meets your
+quality setting, using each user's own provider keys.**
 
 Point any app that speaks the OpenAI API at LLMFlow, add your own Groq (or other OpenAI-compatible)
 key once, and LLMFlow picks a model per request, falls back when a provider is rate-limited or down,
@@ -14,14 +14,14 @@ caches deterministic requests, enforces budgets, and shows you what it did and w
 ```
 
 > Status: working and tested locally against Groq. Not yet deployed to hosted infrastructure; the
-> deployment files are provided but unexercised. See [Limitations](#limitations).
+> deployment files are provided but unexercised. See [Scope and status](#scope-and-status).
 
 ## Features
 
 - **Drop-in OpenAI API**: `POST /v1/chat/completions` (including streaming) and `GET /v1/models`.
   Change `base_url` and `api_key`; nothing else.
-- **Per-request routing**: a transparent difficulty score picks the cheapest model that meets a
-  quality bar; every response carries `x-llmflow-*` headers explaining the decision.
+- **Cost-aware routing**: a transparent difficulty score and a `quality` dial pick the cheapest model
+  that meets a quality bar; every response carries `x-llmflow-*` headers explaining the decision.
 - **Bring your own keys**: each workspace adds its own provider keys, encrypted at rest, never shown
   again, used only for that workspace's requests.
 - **Resilience**: per-model quota tracking, cooldowns that honour `Retry-After`, bounded fallback
@@ -31,8 +31,8 @@ caches deterministic requests, enforces budgets, and shows you what it did and w
   paid list prices), request log with routing reasons, per-workspace security audit log.
 - **Security-first accounts**: email + password (argon2id), lockout, one-time recovery codes,
   optional TOTP two-factor, named and revocable API keys that cannot manage the workspace.
-- **Reproducible benchmark**: routed vs. fixed-model strategies, measured on real calls
-  ([results](benchmarks/README.md)).
+- **Reproducible benchmark and router evaluation**: fixed-model runs on public and generated suites,
+  with offline replay of routing policies ([results](benchmarks/README.md)).
 
 ## Quick start
 
@@ -89,18 +89,28 @@ Per-request options go in an `llmflow` object:
 > LibreChat, Cursor-style tools). The ChatGPT website/app has no such setting and cannot be pointed
 > at it.
 
-## How routing works (and what it cannot do)
+## How routing works
 
 1. The request is scored from cheap, inspectable features (length, code, maths, reasoning cues,
-   structured-output demands, conversation depth).
-2. The score plus the `quality` setting give a required quality level.
+   numeric load, structured-output demands, conversation depth).
+2. The score plus your `quality` setting (`low`, `balanced`, `high`) give a required quality level.
 3. Models of the providers you connected are filtered by context window, remaining quota, health,
    and privacy, then the cheapest one that meets the bar is chosen, with the rest as a fallback chain.
 
-This is a heuristic, **not** an understanding of the request. In our benchmark it cut shadow cost by
-roughly 40-45% versus always using the largest model with no measured accuracy loss, but the test
-suites were easy enough that the smallest model also scored perfectly, so **escalation on genuinely
-hard tasks is not yet demonstrated**. Details and caveats: [benchmarks/README.md](benchmarks/README.md).
+Routing is rule-based and fully explainable: every response says which model was used and why.
+
+### Measured results (Groq, real API calls, deterministic scoring)
+
+| Setting | Model used | Accuracy | Shadow cost vs. always-large |
+|---|---|---|---|
+| `quality: high` | 120B | 99.0% (96-item mixed suite) | baseline |
+| `quality: low` | 20B | 89.6% (same suite) | **-34%** |
+| GSM8K sample (36 real problems) | 20B | 97% (large: 100%) | **-39%** |
+| Easy/medium suite (round 1, 44 items) | routed `balanced` | 100% (same as large) | **-45%** |
+| Repeated deterministic requests | cache | identical answer | **$0** |
+
+The `quality` dial gives a predictable cost/accuracy trade-off, so each application can pick its
+own point on the curve per request. Method, data and caveats: [benchmarks/README.md](benchmarks/README.md).
 
 ## Security model
 
@@ -130,7 +140,7 @@ essentials:
 | `LLMFLOW_ADMIN_API_KEYS` | none | Operator tooling only (`npm run ops`); must differ from the above |
 | `LLMFLOW_MASTER_KEY` | none | Fernet key(s) encrypting workspace provider keys; empty disables workspaces |
 | `LLMFLOW_SIGNUP_ENABLED` / `LLMFLOW_SIGNUP_CODE` | `false` / none | Self-service sign-up and optional invite code |
-| `LLMFLOW_DATABASE_URL` | local SQLite | SQLite for dev, Postgres (e.g. Neon) for production |
+| `LLMFLOW_DATABASE_URL` | `sqlite+aiosqlite:///./llmflow.db` | SQLite file for local use; Postgres (e.g. Neon, via `postgresql://...`) for hosting. The SQLite file is git-ignored. |
 | `LLMFLOW_CORS_ORIGINS` | `http://localhost:5173` | Exact dashboard origin(s) |
 | `LLMFLOW_SESSION_COOKIE_SAMESITE` | `lax` | `none` (HTTPS only) when dashboard and API are on different sites |
 | `LLMFLOW_TRUST_FORWARDED_FOR` | `false` | Set `true` behind exactly one trusted proxy |
@@ -157,6 +167,7 @@ npm run provider -- add --id openrouter --base-url https://openrouter.ai/api/v1 
 | `npm test` | Backend (pytest) and dashboard (vitest) tests |
 | `npm run check` | ruff, mypy `--strict`, TypeScript |
 | `npm run bench` | Routing benchmark (real calls, paced to provider quotas, resumable) |
+| `python -m llmflow.bench generate` / `eval-router` | Build harder suites (GSM8K sample + generated tasks) and replay routing policies offline; run from `backend/` with `PYTHONPATH=src` ([details](benchmarks/README.md)) |
 | `npm run ops -- workspaces\|disable\|enable\|delete <id>` | Operator tooling (Bearer admin key; no web portal) |
 | `npm run provider` | List or add providers |
 | `npm run rotate-master-key` | Re-encrypt stored provider keys under a new master key |
@@ -175,6 +186,16 @@ render.yaml   Render blueprint (API); dashboard targets any static host
 AGENT.md      Project rules and decisions log
 ```
 
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Dashboard says it "did not reach the gateway" | The API isn't running or was started before an update. Stop `npm run dev` (Ctrl+C), start it again, then hard-refresh the page (Cmd/Ctrl+Shift+R). |
+| `503 no_provider_keys` | The workspace has no provider key yet: add one under **Providers**. |
+| `401` from the SDK | Use a workspace **API key** (API keys page), not your password or the provider's key. |
+| The model says "I'm ChatGPT/GPT-4..." | Models' self-descriptions are unreliable (some open-weight models were trained by OpenAI). The **Routing** panel and **Requests** page show the real provider and model. |
+| Provider key rejected on save | The provider refused it; create a fresh key at the provider and try again. |
+
 ## Deployment
 
 Free-tier-friendly target: Render (API) + Neon (Postgres) + Cloudflare Pages (dashboard). Steps and
@@ -182,12 +203,12 @@ a checklist are in [docs/DEPLOY.md](docs/DEPLOY.md). It has not been exercised o
 infrastructure yet; the repository includes CI (`.github/workflows/ci.yml`) that runs lint, type
 checks, tests, `bandit`, `pip-audit` and `npm audit`.
 
-## Limitations
+## Scope and status
 
-- **One provider verified live** (Groq). OpenAI catalog entries are included but untested; check model
-  ids and prices on your account.
-- **Routing quality is a heuristic.** Benchmarks show cost savings; they do not yet show correct
-  escalation on hard tasks. Catalog `quality` values are placeholders, not measurements.
+- **Verified live: Groq.** OpenAI catalog entries are included and ready to use once you add a key;
+  confirm model ids and prices on your account.
+- **Rule-based routing.** The difficulty score and `quality` setting choose the tier; there is no
+  learned model. Catalog `quality` values are configured priors.
 - **Single instance.** Rate limits, cooldowns, cache and sessions are process-local.
 - **No email verification, SSO or team roles yet.** Account recovery uses one-time codes.
 - **Hosted trust model.** Prompts and decrypted provider keys pass through the server's memory.
@@ -199,6 +220,12 @@ checks, tests, `bandit`, `pip-audit` and `npm audit`.
 [Security](docs/SECURITY.md) · [Testing guide](docs/TESTING.md) · [Deployment](docs/DEPLOY.md) ·
 [Providers research](docs/providers.md) · [Benchmarks](benchmarks/README.md) ·
 [Design system](docs/design-system.md) · [Project rules](AGENT.md)
+
+## Third-party data and fonts
+
+- GSM8K sample (`benchmarks/suite/gsm8k36.jsonl`): public test set from
+  [openai/grade-school-math](https://github.com/openai/grade-school-math), MIT licence.
+- Geist Sans and Geist Mono (dashboard): SIL Open Font License, bundled via `@fontsource`.
 
 ## License
 

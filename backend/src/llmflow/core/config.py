@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     # --- infrastructure -------------------------------------------------------
     database_url: str = "sqlite+aiosqlite:///./llmflow.db"
     catalog_path: Path = Path("config/catalog.yaml")
+    routing_config_path: Path = Path("config/routing.json")
     benchmarks_dir: Path = Field(
         default=Path("../benchmarks/results"), description="Where *.report.json files live."
     )

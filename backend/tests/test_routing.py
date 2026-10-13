@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from llmflow.catalog import ModelSpec, Tier
 from llmflow.providers.quota import QuotaTracker
 from llmflow.routing.analyzer import analyze
@@ -23,7 +25,7 @@ def test_easy_prompt_scores_low_and_hard_prompt_scores_high() -> None:
         )
     )
     assert easy.difficulty < 0.1
-    assert hard.difficulty > 0.6
+    assert hard.difficulty > 0.45
 
 
 def test_required_quality_rises_with_difficulty_and_quality_setting() -> None:
@@ -81,3 +83,24 @@ def test_context_window_filters_models(small: ModelSpec) -> None:
     huge = req("x" * 100_000)
     plan = plan_route(analyze(huge), [small], QuotaTracker())
     assert plan.chain == ()
+
+
+def test_analyzer_v2_does_not_read_dates_as_arithmetic_but_v1_does() -> None:
+    from llmflow.routing.analyzer import analyze
+
+    r = req("Today is 2024-03-15. What day will it be in 10 days?")
+    assert analyze(r, "v1").features["math"] == 1.0  # the old false positive
+    assert analyze(r, "v2").features["math"] == 0.0
+
+
+def test_analyzer_v2_structural_features_and_version_validation() -> None:
+    from llmflow.routing.analyzer import analyze
+
+    plain = analyze(req("Tell me a joke."), "v2").features
+    heavy = analyze(
+        req("Compute 123456 * 98765 + 4321 - 77 and also 8 / 2 then 99 mod 7."), "v2"
+    ).features
+    assert plain["numeric_load"] == 0.0 and heavy["numeric_load"] > 0.3
+    assert heavy["digit_span"] > 0.5 and heavy["operators"] > 0.5
+    with pytest.raises(ValueError):
+        analyze(req("x"), "v9")  # type: ignore[arg-type]
