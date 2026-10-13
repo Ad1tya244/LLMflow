@@ -1,0 +1,56 @@
+# Provider and model catalog. Edit this file, not code, when free tiers change.
+#
+# Currently Groq only. To add another OpenAI-compatible provider, add a `providers:` entry
+# (base_url + api_key_env) and `models:` entries, then set its key in backend/.env:
+#
+#   providers:
+#     openrouter:
+#       base_url: https://openrouter.ai/api/v1
+#       api_key_env: OPENROUTER_API_KEY
+#       trains_on_data: true
+#
+# limits: free-tier quotas AS CONFIGURED (verify in the provider console; docs/providers.md).
+#         Omitted limit = not enforced locally (the provider's 429 still triggers cooldown).
+# price_*: shadow cost, USD per 1M tokens at the provider's published PAID rate (approximate).
+#          Real spend is 0; shadow cost is only for comparing routing strategies.
+# quality: prior in [0,1] used by the router until benchmark results replace it.
+#          These are placeholders, NOT measurements.
+
+providers:
+  groq:
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    trains_on_data: false
+
+models:
+  # Model ids verified against GET /openai/v1/models on 2026-10-13.
+  # Limits are the Developer-plan base table from Groq's docs; confirm yours in the console.
+  - id: groq-gpt-oss-20b
+    provider: groq
+    upstream_model: openai/gpt-oss-20b
+    tier: small
+    quality: 0.5
+    context_window: 131072
+    price_in: 0.075
+    price_out: 0.30
+    limits: {rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000}
+  - id: groq-qwen3.8-27b
+    provider: groq
+    upstream_model: qwen/qwen3.8-27b
+    tier: medium
+    enabled: false          # dominated in benchmarks/results (2026-10-13): lower accuracy than both
+                            # gpt-oss models, +11%/+33% shadow cost vs 120b, ~1.5x slower. Set true to re-test.
+    quality: 0.65
+    context_window: 131072
+    price_in: 0.29          # approximate: no published price found for this model
+    price_out: 0.59
+    limits: {rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000}
+  - id: groq-gpt-oss-120b
+    provider: groq
+    upstream_model: openai/gpt-oss-120b
+    tier: large
+    quality: 0.8
+    context_window: 131072
+    price_in: 0.15
+    price_out: 0.60
+    limits: {rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000}

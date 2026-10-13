@@ -1,0 +1,26 @@
+# OpenAI, so workspaces can bring an OpenAI key. NOT VERIFIED LIVE: the developer had no
+# OpenAI key. Model ids and prices are from OpenAI's public docs as last known; if a model has
+# been renamed or retired, requests return 404, the model goes into cooldown and routing falls
+# back. Edit ids/prices here (or run `npm run provider`) once you have checked your account.
+providers:
+  openai:
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY      # only used if the operator sets a shared key
+    trains_on_data: false            # API data is not used for training by default
+models:
+  - id: openai-gpt-4o-mini
+    provider: openai
+    upstream_model: gpt-4o-mini
+    tier: small
+    quality: 0.6                     # placeholder prior, not a measurement
+    context_window: 128000
+    price_in: 0.15
+    price_out: 0.60
+  - id: openai-gpt-4o
+    provider: openai
+    upstream_model: gpt-4o
+    tier: large
+    quality: 0.85                    # placeholder prior, not a measurement
+    context_window: 128000
+    price_in: 2.50
+    price_out: 10.00

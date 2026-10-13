@@ -1,0 +1,36 @@
+# Render Blueprint: free web service for the API. Dashboard goes on Cloudflare Pages (docs/DEPLOY.md).
+services:
+  - type: web
+    name: llmflow-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.lock
+    startCommand: PYTHONPATH=src uvicorn --factory llmflow.api.app:create_app --host 0.0.0.0 --port $PORT --no-server-header
+    healthCheckPath: /healthz
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: LLMFLOW_API_KEYS          # keys for applications calling /v1/*
+        generateValue: true
+      - key: LLMFLOW_ADMIN_API_KEYS    # operator tooling only (npm run ops); must differ
+        generateValue: true
+      - key: GROQ_API_KEY              # operator key for your own apps (optional once users bring theirs)
+        sync: false
+      - key: LLMFLOW_MASTER_KEY        # Fernet key encrypting users' provider keys; BACK IT UP
+        sync: false
+      - key: LLMFLOW_SIGNUP_ENABLED
+        value: "true"
+      - key: LLMFLOW_SIGNUP_CODE       # optional invite code; leave empty for open sign-up
+        sync: false
+      - key: LLMFLOW_DATABASE_URL      # Neon connection string; ephemeral SQLite is lost on every restart
+        sync: false
+      - key: LLMFLOW_CORS_ORIGINS      # exact dashboard origin, e.g. https://llmflow.pages.dev
+        sync: false
+      - key: LLMFLOW_TRUST_FORWARDED_FOR
+        value: "true"
+      - key: LLMFLOW_SESSION_COOKIE_SAMESITE
+        value: none                    # dashboard (Pages) and API (Render) are different sites
+      - key: LLMFLOW_ENABLE_DOCS
+        value: "false"

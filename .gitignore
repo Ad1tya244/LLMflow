@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# Secrets and local configuration: NEVER commit these
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+secrets/
+credentials*.json
+service-account*.json
+
+# ---------------------------------------------------------------------------
+# Runtime state: databases hold hashed credentials, encrypted provider keys,
+# request metadata and audit logs
+# ---------------------------------------------------------------------------
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ---------------------------------------------------------------------------
+# Dependencies and build output
+# ---------------------------------------------------------------------------
+node_modules/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*.tsbuildinfo
+.vite/
+
+# ---------------------------------------------------------------------------
+# Tool caches and reports
+# ---------------------------------------------------------------------------
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+npm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Editor, OS and assistant tooling local state
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+.claude/
+*.local
