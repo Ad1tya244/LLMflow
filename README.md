@@ -229,4 +229,5 @@ checks, tests, `bandit`, `pip-audit` and `npm audit`.
 
 ## License
 
-No license has been chosen yet. Until one is added, all rights are reserved by the author.
+Released under the [MIT License](LICENSE). Third-party data and fonts keep their own licences (see
+above).
