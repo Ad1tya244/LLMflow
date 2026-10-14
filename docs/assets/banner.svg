@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="t d">
+  <title id="t">LLMFlow</title>
+  <desc id="d">LLMFlow logo and name: an OpenAI-compatible gateway that routes each request to the right model.</desc>
+  <rect width="1280" height="320" rx="16" fill="#0d0d0d"/>
+  <rect x="0.5" y="0.5" width="1279" height="319" rx="15.5" fill="none" stroke="#2a2a28"/>
+
+  <!-- logo mark -->
+  <g transform="translate(468 92)">
+    <rect width="72" height="72" rx="18" fill="#f4f2ee"/>
+    <g transform="scale(3.6)" fill="none" stroke="#0d0d0d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 10h5M8 10l4-4h5M8 10h9M8 10l4 4h5"/>
+    </g>
+  </g>
+
+  <!-- wordmark -->
+  <text x="564" y="146" fill="#f4f2ee" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="64" font-weight="600" letter-spacing="-1.5">LLMFlow</text>
+
+  <text x="640" y="230" text-anchor="middle" fill="#a8a69f" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22">One OpenAI-compatible endpoint. The right model for every request.</text>
+</svg>

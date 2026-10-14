@@ -1,4 +1,6 @@
-# LLMFlow
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="LLMFlow" width="100%">
+</p>
 
 **An OpenAI-compatible LLM gateway that routes each request to the cheapest model that meets your
 quality setting, using each user's own provider keys.**
