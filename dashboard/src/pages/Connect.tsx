@@ -57,7 +57,7 @@ function Body() {
           </li>
           <li>
             <b>API key</b>: one of your workspace&apos;s keys (see <a href="#/keys">API keys</a>). It is
-            different from your login, and your provider keys stay encrypted on the gateway.
+            different from your login, and your provider keys stay encrypted at rest and in transit.
           </li>
           <li>
             <b>Model</b>: use <code>auto</code> to let LLMFlow route each request, or pin one of the models

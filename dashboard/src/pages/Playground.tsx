@@ -1,4 +1,5 @@
-import { Send } from "lucide-react";
+import { Check, Copy, Send } from "lucide-react";
+import { Markdown } from "../components/Markdown";
 import { useRef, useState } from "react";
 import { Gate } from "../components/Gate";
 import { EmptyState, ErrorBanner, PageHeader, Segmented } from "../components/ui";
@@ -15,11 +16,23 @@ function Body() {
   const [quality, setQuality] = useState<"low" | "balanced" | "high">("balanced");
   const [strict, setStrict] = useState(false);
   const [stream, setStream] = useState(true);
+  const [useCache, setUseCache] = useState(false);
   const [text, setText] = useState("");
   const [info, setInfo] = useState<RouteInfo | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const abort = useRef<AbortController | null>(null);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
 
   async function run() {
     abort.current?.abort();
@@ -32,7 +45,7 @@ function Body() {
     try {
       const result = await sendChat(
         conn,
-        { model, prompt, quality, privacy: strict ? "strict" : "standard", stream },
+        { model, prompt, quality, privacy: strict ? "strict" : "standard", stream, cache: useCache },
         setText,
         ctl.signal,
       );
@@ -79,13 +92,23 @@ function Body() {
           </div>
           <div className="panel-head" style={{ borderTop: "1px solid var(--border)" }}>
             <h2 className="section-title">Response</h2>
+            {text && !busy && (
+              <button className="btn ghost" onClick={() => void copy()} aria-label="Copy response">
+                {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+            )}
           </div>
           <div className="panel-body" aria-live="polite">
             {error && <ErrorBanner message={error.message} />}
             {!error && !text && !busy && (
               <EmptyState title="No response yet">The reply and routing details will appear here.</EmptyState>
             )}
-            {text && <div className="response">{text}</div>}
+            {text && (
+              <div className="response">
+                {busy ? <div className="response-plain">{text}</div> : <Markdown source={text} />}
+              </div>
+            )}
           </div>
         </section>
 
@@ -124,8 +147,12 @@ function Body() {
               Strict privacy (exclude providers that train on prompts)
             </label>
             <label className="check">
-              <input type="checkbox" checked={stream} onChange={(e) => setStream(e.target.checked)} />
+              <input type="checkbox" checked={stream && !useCache} disabled={useCache} onChange={(e) => setStream(e.target.checked)} />
               Stream response
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={useCache} onChange={(e) => setUseCache(e.target.checked)} />
+              Use response cache (sends the reply in one piece; repeats are free)
             </label>
           </section>
 
@@ -142,6 +169,12 @@ function Body() {
                   <dd>{info.provider}</dd>
                   <dt>Attempts</dt>
                   <dd>{info.attempts}</dd>
+                  {info.cache && (
+                    <>
+                      <dt>Cache</dt>
+                      <dd>{info.cache === "hit" ? "Hit (no model call)" : info.cache === "miss" ? "Miss (stored)" : info.cache}</dd>
+                    </>
+                  )}
                   {info.cost && (
                     <>
                       <dt>Shadow cost</dt>
@@ -149,7 +182,7 @@ function Body() {
                     </>
                   )}
                   <dt>Reason</dt>
-                  <dd style={{ textAlign: "left", gridColumn: "1 / -1" }}>{info.reason}</dd>
+                  <dd className="kv-reason">{info.reason}</dd>
                 </dl>
               ) : (
                 <span className="muted">Send a request to see the routing decision.</span>

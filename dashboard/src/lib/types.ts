@@ -66,48 +66,6 @@ export interface RequestPage {
   items: RequestRow[];
 }
 
-export interface StrategyResult {
-  description: string;
-  n: number;
-  passed: number;
-  accuracy: number;
-  accuracy_ci95: [number, number];
-  failures: number;
-  fallbacks: number;
-  retries: number;
-  latency_ms_mean: number | null;
-  latency_ms_p50: number | null;
-  latency_ms_p95: number | null;
-  prompt_tokens: number;
-  completion_tokens: number;
-  shadow_cost_usd: number;
-  cost_per_correct_usd: number | null;
-  tier_mix: Record<string, number>;
-  models_used: Record<string, number>;
-  by_difficulty: Record<string, { n: number; accuracy: number }>;
-  by_category: Record<string, { n: number; accuracy: number }>;
-  accuracy_delta_vs_large_pts?: number;
-  cost_saving_vs_large_pct?: number | null;
-  latency_p50_delta_vs_large_pct?: number | null;
-}
-
-export interface BenchmarkReport {
-  label: "MEASURED";
-  notes?: string[];
-  generated_at: string;
-  suite: string;
-  items: number;
-  models: Record<string, { upstream: string; tier: string; price_in: number; price_out: number }>;
-  strategies: Record<string, StrategyResult>;
-  suggested_quality_priors: Record<string, { n: number; accuracy: number; current_prior: number | null }>;
-}
-
-export interface BenchmarksResponse {
-  available: string[];
-  selected: string | null;
-  report: BenchmarkReport | null;
-}
-
 export interface ApiKeyInfo {
   id: string;
   name: string;

@@ -22,15 +22,20 @@ caches deterministic requests, enforces budgets, and shows you what it did and w
   Change `base_url` and `api_key`; nothing else.
 - **Cost-aware routing**: a transparent difficulty score and a `quality` dial pick the cheapest model
   that meets a quality bar; every response carries `x-llmflow-*` headers explaining the decision.
-- **Bring your own keys**: each workspace adds its own provider keys, encrypted at rest, never shown
-  again, used only for that workspace's requests.
+- **Bring your own keys**: each workspace adds its own provider keys, encrypted at rest and sent
+  only over TLS on hosted deployments. They are never shown again and used only for that
+  workspace's requests.
 - **Resilience**: per-model quota tracking, cooldowns that honour `Retry-After`, bounded fallback
   across models, streaming fallback before the first byte.
-- **Cost controls**: exact-match response cache, per-workspace rate limits, daily token/cost budgets.
+- **Cost controls**: exact-match response cache, per-workspace rate limits, and daily token and
+  cost budgets.
 - **Observability**: usage, latency, tier mix and "shadow cost" (what the same tokens would cost at
-  paid list prices), request log with routing reasons, per-workspace security audit log.
-- **Security-first accounts**: email + password (argon2id), lockout, one-time recovery codes,
-  optional TOTP two-factor, named and revocable API keys that cannot manage the workspace.
+  paid list prices), a request log with routing reasons, and a per-workspace security audit log.
+- **Security-first accounts**: email + password (argon2id) with a complexity policy, lockout,
+  one-time recovery codes, optional TOTP two-factor, and named, revocable API keys that cannot
+  manage the workspace.
+- **Web dashboard**: public landing page, then Overview, Requests, Providers, API keys, Connect and
+  a Playground that renders replies as formatted text and shows the routing decision.
 - **Reproducible benchmark and router evaluation**: fixed-model runs on public and generated suites,
   with offline replay of routing policies ([results](benchmarks/README.md)).
 
@@ -46,7 +51,8 @@ npm run dev
 On first run this creates a virtualenv, installs dependencies, and generates local keys in
 `backend/.env`. Then:
 
-1. Open <http://localhost:5173> and choose **Create a workspace**.
+1. Open <http://localhost:5173> and choose **Get started** to create a workspace. Passwords need
+   12+ characters with upper and lower case, a number and a symbol.
 2. Save the API key and recovery codes shown (once).
 3. **Providers**: paste your own Groq key (get a free one at <https://console.groq.com>).
 4. **Connect**: copy the snippet into your app, or try the **Playground**.
@@ -83,7 +89,10 @@ Per-request options go in an `llmflow` object:
 | `quality` | `low` / `balanced` / `high` | raises or lowers the model bar (and cost) |
 | `privacy` | `standard` / `strict` | `strict` excludes providers flagged as training on prompts |
 | `fallback` | `true` / `false` | `false` = fail rather than try another model |
-| `cache` | `auto` / `on` / `off` | `auto` caches only `temperature: 0` requests |
+| `cache` | `auto` / `on` / `off` | `auto` caches only non-streaming `temperature: 0` requests |
+
+Repeated identical requests that are cacheable return instantly at no cost (`x-llmflow-cache: hit`).
+In the Playground, tick **Use response cache** to try it.
 
 > LLMFlow works with clients that let you set an API base URL (SDKs, LangChain, Open WebUI,
 > LibreChat, Cursor-style tools). The ChatGPT website/app has no such setting and cannot be pointed
@@ -117,8 +126,8 @@ own point on the curve per request. Method, data and caveats: [benchmarks/README
 | Concern | Approach |
 |---|---|
 | People vs. apps | Humans use email + password sessions; apps use API keys. An API key cannot manage the workspace. |
-| Provider keys | Verified on save, encrypted at rest (Fernet) under `LLMFLOW_MASTER_KEY`, bound to tenant and provider, never returned (last four only). |
-| Passwords / keys | argon2id passwords; API keys and recovery codes stored only as hashes. |
+| Provider keys | Verified on save, encrypted at rest (Fernet) under `LLMFLOW_MASTER_KEY`, bound to tenant and provider, never returned (last four only). Sent over TLS on hosted deployments. |
+| Passwords / keys | argon2id passwords with a complexity policy (length, mixed case, number, symbol, no sequences or common words); API keys and recovery codes stored only as hashes. |
 | Sessions | HttpOnly cookie + per-session CSRF token; idle and absolute timeouts; revoked on password change. |
 | Abuse | Per-IP and per-account throttling, request size/shape limits, parameter allow-list for upstream calls. |
 | Visibility | Per-workspace audit log; no prompts or secrets are logged or stored. |
@@ -166,7 +175,7 @@ npm run provider -- add --id openrouter --base-url https://openrouter.ai/api/v1 
 | `npm run smoke` | 10 live end-to-end checks |
 | `npm test` | Backend (pytest) and dashboard (vitest) tests |
 | `npm run check` | ruff, mypy `--strict`, TypeScript |
-| `npm run bench` | Routing benchmark (real calls, paced to provider quotas, resumable) |
+| `npm run bench` | Routing benchmark (real calls, paced to provider quotas, resumable); results live in `benchmarks/results/` |
 | `python -m llmflow.bench generate` / `eval-router` | Build harder suites (GSM8K sample + generated tasks) and replay routing policies offline; run from `backend/` with `PYTHONPATH=src` ([details](benchmarks/README.md)) |
 | `npm run ops -- workspaces\|disable\|enable\|delete <id>` | Operator tooling (Bearer admin key; no web portal) |
 | `npm run provider` | List or add providers |
@@ -177,7 +186,7 @@ npm run provider -- add --id openrouter --base-url https://openrouter.ai/api/v1 
 
 ```
 backend/      FastAPI gateway (api, providers, routing, security, storage, tools, bench)
-dashboard/    React + TypeScript SPA for workspace users
+dashboard/    React + TypeScript SPA: landing page and workspace dashboard
 benchmarks/   Benchmark suites and measured results
 docs/         Security model, deployment, testing guide, design system, research notes
 examples/     OpenAI SDK quickstart
@@ -195,6 +204,8 @@ AGENT.md      Project rules and decisions log
 | `401` from the SDK | Use a workspace **API key** (API keys page), not your password or the provider's key. |
 | The model says "I'm ChatGPT/GPT-4..." | Models' self-descriptions are unreliable (some open-weight models were trained by OpenAI). The **Routing** panel and **Requests** page show the real provider and model. |
 | Provider key rejected on save | The provider refused it; create a fresh key at the provider and try again. |
+| Overview shows "0 of N cacheable" | Only non-streaming `temperature: 0` requests (or `cache: "on"`) are cached, and a hit needs an identical repeat. Cached entries live in process memory, so a restart clears them. |
+| Password rejected | Use 12+ characters with upper and lower case, a number and a symbol, no sequences like `1234` or `qwer`, no common words, and not your email name. |
 
 ## Deployment
 
@@ -224,7 +235,7 @@ checks, tests, `bandit`, `pip-audit` and `npm audit`.
 ## Third-party data and fonts
 
 - GSM8K sample (`benchmarks/suite/gsm8k36.jsonl`): public test set from
-  [openai/grade-school-math](https://github.com/openai/grade-school-math), MIT licence.
+  [openai/grade-school-math](https://github.com/openai/grade-school-math), MIT license.
 - Geist Sans and Geist Mono (dashboard): SIL Open Font License, bundled via `@fontsource`.
 
 ## License

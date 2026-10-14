@@ -2,7 +2,6 @@ import type {
   AccountInfo,
   ApiKeyInfo,
   AuditEvent,
-  BenchmarksResponse,
   Overview,
   PublicInfo,
   RangeKey,
@@ -201,8 +200,6 @@ export const api = {
       c,
       `/account/requests?limit=${limit}&offset=${offset}${status ? `&status=${status}` : ""}`,
     ),
-  benchmarks: (c: Connection, name?: string) =>
-    request<BenchmarksResponse>(c, `/account/benchmarks${name ? `?name=${encodeURIComponent(name)}` : ""}`),
   audit: (c: Connection) => request<{ events: AuditEvent[] }>(c, "/account/audit"),
   apiKeys: (c: Connection) => request<{ keys: ApiKeyInfo[] }>(c, "/account/api-keys"),
   createApiKey: (c: Connection, name: string) =>

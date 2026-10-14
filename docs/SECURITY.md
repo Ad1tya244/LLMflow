@@ -94,7 +94,7 @@ Design change after review: the web UI is for **workspace users only**. Operator
 | Concern | Control |
 |---|---|
 | People vs. apps | Separate credentials. Email + password sessions manage a workspace; API keys call `/v1/*` only. An API key sent to `/account/*` gets 403, so a leaked key cannot add provider keys, mint keys, or read the audit log (tested). |
-| Passwords | argon2id (library-default parameters, re-hashed when parameters change), 12-128 characters, simple deny-list, no email-name reuse. Wrong password and unknown email take the same hashing work and return the same message. |
+| Passwords | argon2id (library-default parameters, re-hashed when parameters change), 12-128 characters with upper and lower case, a number and a symbol; no repeated or sequential runs (`aaaa`, `1234`, `qwer`), no common words, no email-name reuse (enforced when a password is set, not at sign-in). Wrong password and unknown email take the same hashing work and return the same message. |
 | Brute force | Per-IP throttle on failures plus a per-account lockout (5 failures, 15 min) that applies even to the correct password and is not revealed to the caller. |
 | Recovery | 10 one-time recovery codes (60 bits each, stored as hashes) reset the password without email; using one ends every session. Regenerating requires the password. |
 | Sessions | Random token in an HttpOnly cookie, hashed server-side, idle 30 min / absolute 12 h, per-session CSRF token required on every `/account` and `/auth` call, all sessions revoked on password change/recovery. |

@@ -16,7 +16,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from llmflow.api.admin import _RANGES, Range, build_overview, read_benchmarks
+from llmflow.api.admin import _RANGES, Range, build_overview
 from llmflow.api.deps import Workspace, request_ip
 from llmflow.core.errors import GatewayError
 from llmflow.core.ratelimit import SlidingWindowLimiter
@@ -282,13 +282,6 @@ async def account_requests(
             for r in rows
         ],
     }  # fmt: skip
-
-
-@router.get("/account/benchmarks")
-async def account_benchmarks(
-    request: Request, _ws: Workspace, name: Annotated[str | None, Query(max_length=100)] = None
-) -> dict[str, Any]:
-    return read_benchmarks(request.app.state.settings.benchmarks_dir, name)
 
 
 @router.post("/account/chat", response_model=None)

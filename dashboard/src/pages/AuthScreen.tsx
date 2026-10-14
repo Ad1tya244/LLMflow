@@ -1,3 +1,5 @@
+import { PasswordRules } from "../components/ui";
+import { passwordAcceptable } from "../lib/passwordRules";
 import { useState } from "react";
 import { SecretBlock } from "../components/Secrets";
 import { ErrorBanner } from "../components/ui";
@@ -88,12 +90,12 @@ function SaveSecrets({ result, onDone }: { result: SignupResult; onDone: () => v
   );
 }
 
-export function AuthScreen() {
+export function AuthScreen({ initialMode = "signin" }: { initialMode?: Mode }) {
   const { signIn, signInMfa, adopt } = useConnection();
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const info = useAsync<PublicInfo | null>(() => api.publicInfo(GATEWAY_URL), []);
-  const [mode, setMode] = useState<Mode>("signin");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [workspace, setWorkspace] = useState("");
@@ -166,6 +168,7 @@ export function AuthScreen() {
             <button type="button" className="link" onClick={() => { setMfaToken(null); setError(null); }}>
               Back to sign in
             </button>
+            <a className="link" href="#/">Back to home</a>
           </div>
         </form>
       </div>
@@ -200,10 +203,10 @@ export function AuthScreen() {
             });
         }}
       >
-        <div className="auth-brand">
+        <a className="auth-brand" href="#/" aria-label="Back to the LLMFlow home page" style={{ textDecoration: "none", color: "inherit" }}>
           <Mark />
           <span>LLMFlow</span>
-        </div>
+        </a>
         <div>
           <h1>{title}</h1>
           <p className="muted">
@@ -237,13 +240,13 @@ export function AuthScreen() {
           value={password}
           onChange={setPassword}
           autoComplete={mode === "signin" ? "current-password" : "new-password"}
-          hint={mode !== "signin" ? "At least 12 characters." : undefined}
         />
+        {mode !== "signin" && <PasswordRules password={password} email={email} />}
         {mode === "signup" && info.data?.invite_code_required && (
           <Field id="invite" label="Invite code" type="password" value={invite} onChange={setInvite} />
         )}
 
-        <button className="btn primary" type="submit" disabled={busy}>
+        <button className="btn primary" type="submit" disabled={busy || (mode !== "signin" && !passwordAcceptable(password, email))}>
           {busy ? "Please wait…" : title}
         </button>
 
@@ -263,6 +266,7 @@ export function AuthScreen() {
               Forgot password?
             </button>
           )}
+          <a className="link" href="#/">Back to home</a>
         </div>
       </form>
     </div>

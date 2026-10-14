@@ -1,6 +1,5 @@
 import {
   Activity,
-  FlaskConical,
   KeyRound,
   LogOut,
   MessageSquareText,
@@ -41,7 +40,6 @@ const SECTIONS: { label: string; items: NavItem[] }[] = [
       { id: "playground", label: "Playground", icon: MessageSquareText },
     ],
   },
-  { label: "Evaluate", items: [{ id: "benchmarks", label: "Benchmarks", icon: FlaskConical }] },
 ];
 
 function Mark() {

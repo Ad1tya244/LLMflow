@@ -26,7 +26,7 @@ MASTER = Fernet.generate_key().decode()
 ADMIN = {"Authorization": "Bearer admin-key-0123456789"}
 OPERATOR = {"Authorization": "Bearer operator-key-0123456789"}
 BODY = {"model": "auto", "messages": [{"role": "user", "content": "hi"}]}
-PASSWORD = "correct horse battery"
+PASSWORD = "Correct-Horse-Battery-7"
 
 
 class Factory:
@@ -171,7 +171,7 @@ def test_signup_validation_and_duplicate_email(env: Env, people: list[Person]) -
     )
     assert (
         c.post(
-            "/auth/signup", json={**base, "email": "bob@example.com", "password": "bobbobbobbob1"}
+            "/auth/signup", json={**base, "email": "bob@example.com", "password": "Bobbobbobbob-1x"}
         ).status_code
         == 422
     )
@@ -294,10 +294,10 @@ def test_change_password_signs_out_everywhere(env: Env, people: list[Person]) ->
         r = other.post("/auth/login", json={"email": "alice@example.com", "password": PASSWORD})
         other_csrf = r.json()["csrf_token"]
         bad = p.client.post("/auth/change-password", headers=p.h,
-                            json={"current_password": "wrong", "new_password": "a brand new passphrase"})  # fmt: skip
+                            json={"current_password": "wrong", "new_password": "Brand-New-Passphrase-4x"})  # fmt: skip
         assert bad.status_code == 403
         ok = p.client.post("/auth/change-password", headers=p.h,
-                           json={"current_password": PASSWORD, "new_password": "a brand new passphrase"})  # fmt: skip
+                           json={"current_password": PASSWORD, "new_password": "Brand-New-Passphrase-4x"})  # fmt: skip
         assert ok.status_code == 200
         assert p.client.get("/account", headers=p.h).status_code == 401
         assert other.get("/account", headers={"x-llmflow-csrf": other_csrf}).status_code == 401
@@ -310,7 +310,7 @@ def test_change_password_signs_out_everywhere(env: Env, people: list[Person]) ->
                 == 401
             )
             assert new.post("/auth/login", json={"email": "alice@example.com",
-                                                 "password": "a brand new passphrase"}).status_code == 200  # fmt: skip
+                                                 "password": "Brand-New-Passphrase-4x"}).status_code == 200  # fmt: skip
 
 
 def test_recovery_code_resets_password_once(env: Env, people: list[Person]) -> None:
@@ -318,7 +318,7 @@ def test_recovery_code_resets_password_once(env: Env, people: list[Person]) -> N
     body = {
         "email": "alice@example.com",
         "recovery_code": p.codes[0],
-        "new_password": "recovered passphrase 1",
+        "new_password": "Recovered-Passphrase-9k",
     }
     r = env.c.post("/auth/recover", json=body)
     assert r.status_code == 200 and r.json()["recovery_codes_left"] == 9
@@ -329,7 +329,7 @@ def test_recovery_code_resets_password_once(env: Env, people: list[Person]) -> N
     fresh = TestClient(env.c.app)
     with fresh:
         assert fresh.post("/auth/login", json={"email": "alice@example.com",
-                                               "password": "recovered passphrase 1"}).status_code == 200  # fmt: skip
+                                               "password": "Recovered-Passphrase-9k"}).status_code == 200  # fmt: skip
 
 
 # --- API keys ----------------------------------------------------------------------------------
@@ -534,12 +534,26 @@ def test_password_policy_and_hashing() -> None:
     assert pw.verify_password("hunter2hunter2", pw.hash_password("hunter2hunter2"))
     assert not pw.verify_password("other-password!!", pw.hash_password("hunter2hunter2"))
     assert not pw.verify_password("anything", None)  # unknown user path
-    for bad in ("short", "a" * 20, "password123456", "x" * 200):
+    weak = {
+        "short": "Ab1!",
+        "no uppercase": "correct-horse-battery-7",
+        "no lowercase": "CORRECT-HORSE-BATTERY-7",
+        "no number": "Correct-Horse-Battery",
+        "no symbol": "CorrectHorseBattery7",
+        "repeated run": "Correct-Horse-Bxxxx7",
+        "sequence": "Correct-Horse-1234-Zq",
+        "keyboard walk": "Correct-Horse-qwer-9Z",
+        "common word": "Welcome-To-The-Zoo-42",
+        "too long": "Aa1!" * 40,
+    }
+    for reason, bad in weak.items():
         with pytest.raises(pw.PasswordPolicyError):
             pw.check_policy(bad)
+        assert reason  # the key documents why each case is rejected
     with pytest.raises(pw.PasswordPolicyError):
-        pw.check_policy("alicealice1234", "alice@example.com")
-    pw.check_policy("correct horse battery")
+        pw.check_policy("Alicealice-1357-Zq", "alice@example.com")
+    pw.check_policy("Correct-Horse-Battery-7")
+    pw.check_policy("my dog Rufus eats 3 apples")  # spaces count as symbols
     assert pw.hash_recovery_code("abcd-efgh-jklm") == pw.hash_recovery_code("ABCD EFGH JKLM")
     assert len({*pw.new_recovery_codes()}) == 10
 
@@ -780,3 +794,19 @@ def test_cors_preflight_allows_every_method_the_dashboard_uses(env: Env) -> None
         assert method in r.headers["access-control-allow-methods"]
         assert r.headers["access-control-allow-origin"] == "http://localhost:5173"
         assert r.headers["access-control-allow-credentials"] == "true"
+
+
+def test_playground_cache_hit_on_repeat(env: Env, people: list[Person]) -> None:
+    p = person(env, people)
+    save_key(p, "p1", "k-" + "a" * 20)
+    body = {
+        "model": "auto",
+        "stream": False,
+        "messages": [{"role": "user", "content": "who are you?"}],
+        "llmflow": {"quality": "balanced", "privacy": "standard", "cache": "on"},
+    }
+    first = p.client.post("/account/chat", headers=p.h, json=body)
+    second = p.client.post("/account/chat", headers=p.h, json=body)
+    assert first.status_code == 200 and second.status_code == 200, (first.text, second.text)
+    assert first.headers["x-llmflow-cache"] == "miss"
+    assert second.headers["x-llmflow-cache"] == "hit"

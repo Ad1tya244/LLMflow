@@ -1,3 +1,4 @@
+import { passwordRules } from "../lib/passwordRules";
 import { AlertTriangle, Check, CircleAlert, Clock, KeyRound, Minus } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Tier } from "../lib/types";
@@ -178,4 +179,17 @@ export function ErrorBanner({ message, onRetry }: { message: string; onRetry?: (
 
 export function Skeleton({ height = 16, width = "100%" }: { height?: number; width?: number | string }) {
   return <div className="skeleton" style={{ height, width }} aria-hidden />;
+}
+
+export function PasswordRules({ password, email }: { password: string; email?: string }) {
+  return (
+    <ul className="pw-rules" aria-label="Password requirements">
+      {passwordRules(password, email).map((r) => (
+        <li key={r.label} className={r.ok ? "ok" : undefined}>
+          {r.label}
+          <span className="sr-only">{r.ok ? " (met)" : " (not met)"}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }

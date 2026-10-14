@@ -7,7 +7,6 @@ export type RouteId =
   | "keys"
   | "connect"
   | "playground"
-  | "benchmarks"
   | "settings";
 const ROUTES: RouteId[] = [
   "overview",
@@ -16,7 +15,6 @@ const ROUTES: RouteId[] = [
   "keys",
   "connect",
   "playground",
-  "benchmarks",
   "settings",
 ];
 

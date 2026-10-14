@@ -29,12 +29,15 @@ export function clock(tsSeconds: number): string {
   });
 }
 
-export function dateTime(tsSeconds: number): string {
-  return new Date(tsSeconds * 1000).toLocaleString("en", {
-    month: "short",
+/** 24-hour date and time with the year, e.g. "13 Oct 2026, 14:05". Unambiguous without AM/PM. */
+export function dateTime(tsSeconds: number, withSeconds = false): string {
+  return new Date(tsSeconds * 1000).toLocaleString("en-GB", {
     day: "numeric",
+    month: "short",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    ...(withSeconds ? { second: "2-digit" } : {}),
     hour12: false,
   });
 }

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Gate } from "../components/Gate";
 import { SecretBlock } from "../components/Secrets";
-import { ErrorBanner, PageHeader, Skeleton } from "../components/ui";
+import { ErrorBanner, PageHeader, PasswordRules, Skeleton } from "../components/ui";
+import { passwordAcceptable } from "../lib/passwordRules";
 import { api } from "../lib/api";
 import { dateTime } from "../lib/format";
 import { useConnection } from "../lib/store";
@@ -100,7 +101,7 @@ function Body() {
         <div className="panel-head">
           <h2 className="section-title">Profile</h2>
         </div>
-        <dl className="kv panel-body">
+        <dl className="kv kv-left panel-body">
           <dt>Email</dt>
           <dd>{profile?.user.email}</dd>
           <dt>Workspace</dt>
@@ -110,9 +111,13 @@ function Body() {
         </dl>
       </section>
 
-      <section className="panel panel-body stack" style={{ maxWidth: 560 }}>
-        <h2 className="section-title">Change password</h2>
-        <p className="muted">Changing your password signs you out of every device.</p>
+      <div className="settings-cols">
+        <div className="settings-col">
+      <section className="panel panel-body stack">
+        <div className="card-intro">
+          <h2 className="section-title">Change password</h2>
+          <p className="muted">Changing your password signs you out of every device.</p>
+        </div>
         <div className="field">
           <label htmlFor="cur">Current password</label>
           <input id="cur" className="input" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
@@ -120,27 +125,35 @@ function Body() {
         <div className="field">
           <label htmlFor="new">New password</label>
           <input id="new" className="input" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-          <span className="hint">At least 12 characters.</span>
+          <PasswordRules password={next} email={profile?.user.email} />
         </div>
         <div className="field">
           <label htmlFor="conf">Confirm new password</label>
           <input id="conf" className="input" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </div>
         <div className="form-row">
-          <button className="btn primary" disabled={busy || !current || !next} onClick={() => void changePassword()}>
+          <button className="btn primary" disabled={busy || !current || !passwordAcceptable(next, profile?.user.email)} onClick={() => void changePassword()}>
             Change password
           </button>
           {msg && <span role="status" className={msg.ok ? "badge good" : "badge bad"}>{msg.text}</span>}
         </div>
       </section>
 
-      <section className="panel panel-body stack" style={{ maxWidth: 560 }}>
-        <h2 className="section-title">Two-factor authentication</h2>
+        </div>
+        <div className="settings-col">
+      <section className="panel panel-body stack">
+        <div className="card-intro">
+          <h2 className="section-title">Two-factor authentication</h2>
+          <p className="muted">
+            {account.data?.user.mfa_enabled
+              ? "Enabled. Sign-in needs your password and a code from your authenticator app (or a recovery code)."
+              : mfaSetup
+                ? "Add this account to an authenticator app (Google Authenticator, 1Password, Authy…): choose “enter a setup key”, paste the key below, then enter the 6-digit code it shows."
+                : "Protects your provider keys even if your password leaks. Strongly recommended."}
+          </p>
+        </div>
         {account.data?.user.mfa_enabled ? (
           <>
-            <p className="muted">
-              Enabled. Sign-in needs your password and a code from your authenticator app (or a recovery code).
-            </p>
             <div className="form-row">
               <div className="field grow">
                 <label htmlFor="mfa-pw">Password</label>
@@ -161,10 +174,6 @@ function Body() {
           </>
         ) : mfaSetup ? (
           <>
-            <p className="muted">
-              Add this account to an authenticator app (Google Authenticator, 1Password, Authy…): choose
-              &quot;enter a setup key&quot; and paste the key below, then enter the 6-digit code it shows.
-            </p>
             <SecretBlock title="Setup key" value={mfaSetup.secret} />
             <a className="link" href={mfaSetup.otpauth_uri}>
               Open in authenticator app
@@ -185,9 +194,6 @@ function Body() {
           </>
         ) : (
           <>
-            <p className="muted">
-              Protects your provider keys even if your password leaks. Strongly recommended.
-            </p>
             <div className="form-row">
               <div className="field grow">
                 <label htmlFor="mfa-start">Confirm with your password</label>
@@ -206,12 +212,14 @@ function Body() {
         {mfaMsg && <span role="status" className={mfaMsg.ok ? "badge good" : "badge bad"}>{mfaMsg.text}</span>}
       </section>
 
-      <section className="panel panel-body stack" style={{ maxWidth: 560 }}>
-        <h2 className="section-title">Recovery codes</h2>
-        <p className="muted">
-          One-time codes that let you reset your password if you forget it. Generating new codes
-          invalidates all old ones.
-        </p>
+      <section className="panel panel-body stack">
+        <div className="card-intro">
+          <h2 className="section-title">Recovery codes</h2>
+          <p className="muted">
+            One-time codes that let you reset your password if you forget it. Generating new codes
+            invalidates all old ones.
+          </p>
+        </div>
         <div className="form-row">
           <div className="field grow">
             <label htmlFor="rcp">Confirm with your password</label>
@@ -229,6 +237,9 @@ function Body() {
           </div>
         )}
       </section>
+
+        </div>
+      </div>
 
       <section className="panel">
         <div className="panel-head">
@@ -256,7 +267,7 @@ function Body() {
               <tbody>
                 {audit.data.events.map((e, i) => (
                   <tr key={`${e.ts}-${i}`}>
-                    <td className="muted">{dateTime(e.ts)}</td>
+                    <td className="muted">{dateTime(e.ts, true)}</td>
                     <td>{ACTION_LABEL[e.action] ?? e.action}</td>
                     <td className="mono">{e.detail || "–"}</td>
                     <td>{e.actor}</td>

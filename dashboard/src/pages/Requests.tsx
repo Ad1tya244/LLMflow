@@ -89,7 +89,7 @@ function Body() {
                             <td>
                               {expanded ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
                             </td>
-                            <td className="muted">{dateTime(r.ts)}</td>
+                            <td className="muted">{dateTime(r.ts, true)}</td>
                             <td>
                               <div className="mono">{r.model ?? "–"}</div>
                               <div className="muted">

@@ -5,7 +5,8 @@ import { useRoute } from "./lib/route";
 import { useConnection } from "./lib/store";
 import { ApiKeys } from "./pages/ApiKeys";
 import { AuthScreen } from "./pages/AuthScreen";
-import { Benchmarks } from "./pages/Benchmarks";
+import { Landing } from "./pages/Landing";
+import { useAuthRoute } from "./lib/authRoute";
 import { Connect } from "./pages/Connect";
 import { Overview } from "./pages/Overview";
 import { Playground } from "./pages/Playground";
@@ -16,6 +17,7 @@ import { Settings } from "./pages/Settings";
 export function App() {
   const route = useRoute();
   const { auth } = useConnection();
+  const authRoute = useAuthRoute();
 
   if (auth === "checking") {
     return (
@@ -27,7 +29,10 @@ export function App() {
       </div>
     );
   }
-  if (auth === "signed_out") return <AuthScreen />;
+  if (auth === "signed_out") {
+    if (authRoute === "landing") return <Landing />;
+    return <AuthScreen key={authRoute} initialMode={authRoute} />;
+  }
 
   return (
     <Shell route={route}>
@@ -38,7 +43,6 @@ export function App() {
         {route === "keys" && <ApiKeys />}
         {route === "connect" && <Connect />}
         {route === "playground" && <Playground />}
-        {route === "benchmarks" && <Benchmarks />}
         {route === "settings" && <Settings />}
       </ErrorBoundary>
     </Shell>

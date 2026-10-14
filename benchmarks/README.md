@@ -2,7 +2,7 @@
 
 Measured results of routing strategies on Groq's free tier, produced by `npm run bench`
 (`backend/src/llmflow/bench`). Raw per-item rows are in `results/*.jsonl`, summaries in
-`results/*.report.md|json`, and the dashboard's **Benchmarks** page renders them.
+`results/*.report.md|json`.
 
 ## What was run (2026-10-13)
 

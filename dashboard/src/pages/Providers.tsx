@@ -139,7 +139,7 @@ function Body() {
           <div className="banner" role="note">
             <KeyRound size={16} aria-hidden />
             <div className="grow">
-              Keys are verified with the provider, encrypted at rest, and never shown again (only the last
+              Keys are verified with the provider, encrypted at rest and in transit, and never shown again (only the last
               four characters). Use a dedicated key with a spend limit, not your main one. Today: {compact(data.usage_today.tokens)} tokens ·{" "}
               {usd(data.usage_today.shadow_cost_usd)} shadow cost.
             </div>
