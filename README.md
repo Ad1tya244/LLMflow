@@ -211,7 +211,7 @@ AGENT.md      Project rules and decisions log
 
 ## Deployment
 
-Free-tier-friendly target: Render (API) + Neon (Postgres) + Cloudflare Pages (dashboard). Steps and
+Free-tier-friendly target: Render (API) + Neon (Postgres) + Vercel (dashboard). Steps and
 a checklist are in [docs/DEPLOY.md](docs/DEPLOY.md). It has not been exercised on live
 infrastructure yet; the repository includes CI (`.github/workflows/ci.yml`) that runs lint, type
 checks, tests, `bandit`, `pip-audit` and `npm audit`.

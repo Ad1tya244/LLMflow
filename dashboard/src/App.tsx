@@ -20,6 +20,8 @@ export function App() {
   const authRoute = useAuthRoute();
 
   if (auth === "checking") {
+    // Never make a visitor wait on the (possibly sleeping) API to see the landing page.
+    if (authRoute === "landing") return <Landing />;
     return (
       <div className="auth-wrap" aria-busy>
         <div className="auth-card stack">

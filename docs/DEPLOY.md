@@ -1,6 +1,6 @@
 # Deploying on free tiers
 
-Target: **Render** (API), **Neon** (Postgres), **Cloudflare Pages** (dashboard). None require a payment method. I could not create these accounts, so this has **not** been exercised on live infrastructure; the steps follow each provider's documentation as of 2026-10-13.
+Target: **Render** (API), **Neon** (Postgres), **Vercel** (dashboard). None require a payment method. I could not create these accounts, so this has **not** been exercised on live infrastructure; the steps follow each provider's documentation as of 2026-10-13.
 
 ## 1. Database (Neon)
 1. Create a free project at neon.com. Copy the connection string (it looks like `postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require`).
@@ -20,13 +20,21 @@ Why not SQLite on Render: free web services have an ephemeral filesystem, so log
 
 Free-tier behaviour to expect: the service sleeps after 15 min idle and takes about a minute to wake; 750 instance-hours/month; the dashboard shows a "may be starting up" message while it wakes. In-memory state (rate limits, cache, sessions) resets on every restart; budgets are re-hydrated from the database.
 
-## 3. Dashboard (Cloudflare Pages)
-1. New project from the same repo. Root directory `dashboard`, build command `npm run build`, output `dist`.
-2. Environment variable `VITE_GATEWAY_URL` = your Render URL.
-3. Copy the Pages URL into Render's `LLMFLOW_CORS_ORIGINS` (exact origin, no trailing slash) and redeploy the API.
-4. Open the dashboard and choose **Create a workspace** (sign-up is on in the blueprint; set
-   `LLMFLOW_SIGNUP_CODE` to require an invite code). Operator tasks use `npm run ops` with
-   `LLMFLOW_API_URL` pointing at the API and `LLMFLOW_ADMIN_KEY` set to the admin key.
+## 3. Dashboard (Vercel)
+The dashboard proxies the API under `/gw` (see `dashboard/vercel.json`), so the browser sees a single
+site and the session cookie stays first-party. This avoids third-party-cookie blocking (Safari,
+Chrome) that would break sign-in if the dashboard called the Render domain directly.
+1. In `dashboard/vercel.json`, replace `REPLACE-WITH-YOUR-RENDER-URL` with your Render service host.
+2. In Vercel choose **Add New → Project**, import the repo, set **Root Directory** to `dashboard`
+   (framework preset: Vite).
+3. Add the environment variable `VITE_GATEWAY_URL` = `/gw`, then deploy.
+4. Copy the Vercel URL into Render's `LLMFLOW_CORS_ORIGINS` (exact origin, no trailing slash) and
+   redeploy the API.
+5. Open the dashboard and choose **Get started** to create a workspace (set `LLMFLOW_SIGNUP_CODE`
+   to require an invite code). Operator tasks use `npm run ops` with `LLMFLOW_API_URL` pointing at
+   the API and `LLMFLOW_ADMIN_KEY` set to the admin key.
+
+Applications (the OpenAI SDK) can call either the Render URL or `https://<your-app>.vercel.app/gw`.
 
 ## Checklist
 - [ ] `LLMFLOW_API_KEYS` and `LLMFLOW_ADMIN_API_KEYS` are different, 16+ chars

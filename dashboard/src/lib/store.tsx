@@ -16,9 +16,16 @@ const DEFAULT_URL = "http://localhost:8000";
 export type AuthState = "checking" | "signed_out" | "signed_in";
 
 /** The gateway is fixed per deployment (build-time), never typed by the user. */
-export const GATEWAY_URL: string = (
-  (import.meta.env.VITE_GATEWAY_URL as string | undefined) || DEFAULT_URL
-).replace(/\/+$/, "");
+export const GATEWAY_URL: string = resolveGatewayUrl(
+  (import.meta.env.VITE_GATEWAY_URL as string | undefined) || DEFAULT_URL,
+);
+
+/** A leading "/" means "same site, behind a reverse-proxy path" (e.g. ``/gw`` on Vercel), which
+ *  keeps the session cookie first-party. Resolve it to a full URL so snippets stay copy-pasteable. */
+export function resolveGatewayUrl(raw: string, origin = window.location.origin): string {
+  const full = raw.startsWith("/") ? `${origin}${raw}` : raw;
+  return full.replace(/\/+$/, "");
+}
 
 interface ConnectionState {
   conn: Connection;

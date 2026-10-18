@@ -1,4 +1,4 @@
-# Render Blueprint: free web service for the API. Dashboard goes on Cloudflare Pages (docs/DEPLOY.md).
+# Render Blueprint: free web service for the API. Dashboard goes on Vercel (docs/DEPLOY.md).
 services:
   - type: web
     name: llmflow-api
@@ -26,11 +26,11 @@ services:
         sync: false
       - key: LLMFLOW_DATABASE_URL      # Neon connection string; ephemeral SQLite is lost on every restart
         sync: false
-      - key: LLMFLOW_CORS_ORIGINS      # exact dashboard origin, e.g. https://llmflow.pages.dev
+      - key: LLMFLOW_CORS_ORIGINS      # exact dashboard origin, e.g. https://llmflow.vercel.app
         sync: false
       - key: LLMFLOW_TRUST_FORWARDED_FOR
         value: "true"
       - key: LLMFLOW_SESSION_COOKIE_SAMESITE
-        value: none                    # dashboard (Pages) and API (Render) are different sites
+        value: lax                     # the dashboard proxies the API under /gw, so cookies are first-party
       - key: LLMFLOW_ENABLE_DOCS
         value: "false"

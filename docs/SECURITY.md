@@ -47,13 +47,13 @@ No system can be proven free of vulnerabilities; this document states what was c
 ## Residual risks and operator responsibilities
 
 - **Dashboard session (no credential in browser storage).** The admin key is exchanged once for a random session token in an `HttpOnly`, `SameSite` (and `Secure` over HTTPS) cookie; page JavaScript cannot read it, and the key itself is discarded immediately. A per-session CSRF token lives in memory only and must be sent as `X-LLMFlow-CSRF` on every cookie-authenticated request. Sessions are server-side, hashed at rest, idle-timeout 30 min, absolute lifetime 12 h, revocable by sign-out. Residual: an XSS bug could still make authenticated requests *from the page* while it is open (it cannot exfiltrate the credential). Mitigations: strict CSP, no HTML sinks, React escaping.
-- **Cross-site deployment.** If the dashboard and API are on different sites (e.g. Cloudflare Pages + Render), set `LLMFLOW_SESSION_COOKIE_SAMESITE=none` (HTTPS required; the server refuses otherwise) and keep `LLMFLOW_CORS_ORIGINS` to the exact dashboard origin. Same-site hosting can keep `lax`.
+- **Cross-site deployment.** If the dashboard and API are on different sites (e.g. Vercel + Render without the `/gw` proxy), set `LLMFLOW_SESSION_COOKIE_SAMESITE=none` (HTTPS required; the server refuses otherwise) and keep `LLMFLOW_CORS_ORIGINS` to the exact dashboard origin. Same-site hosting, including the Vercel `/gw` proxy setup in `docs/DEPLOY.md`, keeps `lax`.
 - **Dev auto-login.** `npm run dev` injects the local admin key into the Vite **dev** server so the dashboard signs in automatically. It is gated by `import.meta.env.DEV` and the variable is never set in production builds.
 - **Single-instance state.** Rate limits, cooldowns, cache and budgets are process-local. Restarts reset limits (budgets are re-hydrated from the database). Do not scale horizontally without moving this state to a shared store.
 - **Failed-auth throttle behind a proxy.** Without `LLMFLOW_TRUST_FORWARDED_FOR=true` all clients appear to share the proxy IP, so one attacker could throttle everyone's failed attempts. Set it when deployed behind exactly one trusted proxy (Render).
 - **Free-tier providers may train on prompts** (e.g. Gemini free tier). Use `privacy: strict` for sensitive requests and keep sensitive data out of free tiers.
 - **Shadow-cost budgets are estimates** at catalog list prices, not billing.
-- **Denial of service.** Application-level limits exist, but volumetric DoS protection is the platform's job (Render/Cloudflare).
+- **Denial of service.** Application-level limits exist, but volumetric DoS protection is the platform's job (Render/Vercel).
 - **Key rotation** is by editing the environment and restarting; there is no key-management UI.
 - Rotate any key that was ever pasted into chat, a screenshot, or a shell history.
 
