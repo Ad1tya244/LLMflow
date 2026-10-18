@@ -4,16 +4,82 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <title>LLMFlow</title>
-    <link
-      rel="icon"
-      type="image/svg+xml"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Crect width='20' height='20' rx='4' fill='%230b0b0b'/%3E%3Cpath d='M3 10h5M8 10l4-4h5M8 10h9M8 10l4 4h5' stroke='%23fff' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    <meta name="theme-color" content="#0d0d0d" />
+    <title>LLMFlow: OpenAI-compatible LLM routing gateway</title>
+    <meta
+      name="description"
+      content="Open-source, OpenAI-compatible LLM gateway. Bring your own provider keys and LLMFlow routes each request to the cheapest model that meets your quality setting."
     />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="__SITE_URL__/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LLMFlow" />
+    <meta property="og:title" content="LLMFlow: send every request to the right AI model" />
+    <meta
+      property="og:description"
+      content="An open-source, OpenAI-compatible gateway that routes each request to the cheapest model that meets your quality setting. Bring your own provider keys."
+    />
+    <meta property="og:url" content="__SITE_URL__/" />
+    <meta property="og:image" content="__SITE_URL__/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="LLMFlow logo with the tagline: Send every request to the right AI model." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LLMFlow: send every request to the right AI model" />
+    <meta
+      name="twitter:description"
+      content="An open-source, OpenAI-compatible gateway that routes each request to the cheapest model that meets your quality setting."
+    />
+    <meta name="twitter:image" content="__SITE_URL__/og-image.png" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "__SITE_URL__/#website",
+            "url": "__SITE_URL__/",
+            "name": "LLMFlow",
+            "description": "An open-source, OpenAI-compatible LLM gateway that routes each request to the cheapest suitable model.",
+            "inLanguage": "en"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "__SITE_URL__/#software",
+            "name": "LLMFlow",
+            "url": "__SITE_URL__/",
+            "image": "__SITE_URL__/og-image.png",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Web",
+            "description": "An OpenAI-compatible gateway: bring your own provider keys, and LLMFlow sends each request to the cheapest model that meets your quality setting, with fallback, caching, budgets and an audit log.",
+            "license": "https://opensource.org/license/mit",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+          }
+        ]
+      }
+    </script>
     <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main style="max-width: 640px; margin: 64px auto; padding: 0 24px; font-family: system-ui, sans-serif; line-height: 1.6">
+        <h1>LLMFlow</h1>
+        <p>
+          LLMFlow is an open-source, OpenAI-compatible LLM gateway. Add your own provider keys, change one
+          line of code, and it sends each request to the cheapest model that meets your quality setting,
+          with automatic fallback, response caching, spend limits and a security audit log.
+        </p>
+        <p>The LLMFlow dashboard needs JavaScript. Please enable it to sign in or create a workspace.</p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

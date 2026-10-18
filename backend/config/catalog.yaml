@@ -1,6 +1,6 @@
 # Provider and model catalog. Edit this file, not code, when free tiers change.
 #
-# Currently Groq only. To add another OpenAI-compatible provider, add a `providers:` entry
+# Groq is the verified provider; OpenAI and Gemini live in catalog.d/. To add another OpenAI-compatible provider, add a `providers:` entry
 # (base_url + api_key_env) and `models:` entries, then set its key in backend/.env:
 #
 #   providers:
@@ -38,12 +38,13 @@ models:
     provider: groq
     upstream_model: qwen/qwen3.8-27b
     tier: medium
-    enabled: false          # dominated in benchmarks/results (2026-10-13): lower accuracy than both
-                            # gpt-oss models, +11%/+33% shadow cost vs 120b, ~1.5x slower. Set true to re-test.
+    auto_route: false       # pick it by name (e.g. in the Playground); the router never chooses it:
+                            # in benchmarks/results (2026-10-13) it scored below both gpt-oss models
+                            # at higher shadow cost, and Groq lists it as a preview model.
     quality: 0.65
     context_window: 131072
-    price_in: 0.29          # approximate: no published price found for this model
-    price_out: 0.59
+    price_in: 0.80          # Groq's published preview price (console.groq.com/docs/models)
+    price_out: 4.00
     limits: {rpm: 30, rpd: 1000, tpm: 8000, tpd: 200000}
   - id: groq-gpt-oss-120b
     provider: groq

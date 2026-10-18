@@ -1,0 +1,43 @@
+# Google Gemini through its OpenAI-compatible endpoint, so workspaces can bring a Gemini key.
+# NOT VERIFIED LIVE: the developer has not tested a Gemini key against this gateway yet. Model ids
+# and prices come from Google's public docs (ai.google.dev/gemini-api/docs/pricing, checked
+# 2026-10-18) and Google changes them often; a retired or renamed id returns 404, the model goes
+# into cooldown and routing falls back to another provider. Quality values are placeholders.
+#
+# - trains_on_data: Google may use free-tier prompts to improve its products, so "strict privacy"
+#   requests skip Gemini. A paid key is not used that way, but the flag stays conservative.
+# - stream_usage: false because the OpenAI-compatible layer does not document
+#   `stream_options`; streamed Gemini replies are not token-counted. Set true after testing.
+# - No local rate limits are configured: free and paid plans differ, so Google's own 429 and
+#   Retry-After handling applies.
+providers:
+  gemini:
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    api_key_env: GEMINI_API_KEY      # only used if the operator sets a shared key
+    trains_on_data: true
+    stream_usage: false
+models:
+  - id: gemini-2.5-flash-lite
+    provider: gemini
+    upstream_model: gemini-2.5-flash-lite
+    tier: small
+    quality: 0.55
+    context_window: 1000000
+    price_in: 0.10
+    price_out: 0.40
+  - id: gemini-3.5-flash-lite
+    provider: gemini
+    upstream_model: gemini-3.5-flash-lite
+    tier: medium
+    quality: 0.7
+    context_window: 1000000
+    price_in: 0.30
+    price_out: 2.50
+  - id: gemini-3.8-flash
+    provider: gemini
+    upstream_model: gemini-3.8-flash
+    tier: large
+    quality: 0.88
+    context_window: 1000000
+    price_in: 0.75
+    price_out: 3.75

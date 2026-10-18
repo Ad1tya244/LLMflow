@@ -36,6 +36,18 @@ Chrome) that would break sign-in if the dashboard called the Render domain direc
 
 Applications (the OpenAI SDK) can call either the Render URL or `https://<your-app>.vercel.app/gw`.
 
+### Search engines (SEO)
+The build generates `robots.txt`, `sitemap.xml`, canonical and Open Graph URLs from one value. The
+default is the current Vercel address; if you attach a custom domain, add the environment variable
+`VITE_SITE_URL=https://your-domain.com` in Vercel and redeploy. Then:
+1. Add the site in [Google Search Console](https://search.google.com/search-console) and
+   [Bing Webmaster Tools](https://www.bing.com/webmasters).
+2. Submit `https://your-domain.com/sitemap.xml`.
+3. Check the social preview by pasting the URL into a chat app or a card validator.
+
+Only the landing page is indexable: the app is behind sign-in on `#/` routes, and `/gw/` (the API
+proxy) is disallowed in `robots.txt`.
+
 ## Checklist
 - [ ] `LLMFLOW_API_KEYS` and `LLMFLOW_ADMIN_API_KEYS` are different, 16+ chars
 - [ ] `LLMFLOW_CORS_ORIGINS` is exactly the dashboard origin

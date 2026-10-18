@@ -164,7 +164,10 @@ essentials:
 | `LLMFLOW_ENABLE_DOCS` | `false` | Expose `/docs` and `/openapi.json` |
 
 Models and providers live in [`backend/config/catalog.yaml`](backend/config/catalog.yaml) and
-`backend/config/catalog.d/*.yaml`. Add a provider without editing YAML by hand:
+`backend/config/catalog.d/*.yaml` (Groq, OpenAI, Gemini). Per model, `enabled` switches it off
+entirely and `auto_route: false` keeps it out of automatic routing while leaving it selectable;
+per provider, `stream_usage: false` skips `stream_options` for APIs that reject it.
+Add a provider without editing YAML by hand:
 
 ```bash
 npm run provider -- list --base-url https://openrouter.ai/api/v1 --key-env OPENROUTER_API_KEY
@@ -196,10 +199,18 @@ dashboard/    React + TypeScript SPA: landing page and workspace dashboard
 benchmarks/   Benchmark suites and measured results
 docs/         Security model, deployment, testing guide, design system, research notes
 examples/     OpenAI SDK quickstart
-scripts/      Dev runner, demo, operator CLI
+scripts/      Dev runner, demo, operator CLI, brand image generator
 render.yaml   Render blueprint (API); dashboard targets any static host
 AGENT.md      Project rules and decisions log
 ```
+
+## SEO
+
+The landing page ships a descriptive title and meta description, a canonical URL, Open Graph and
+Twitter cards (with a generated 1200x630 preview image), JSON-LD structured data, icons and a web
+manifest. `robots.txt` and `sitemap.xml` are generated at build time from `VITE_SITE_URL` (default
+the live Vercel address; see [docs/DEPLOY.md](docs/DEPLOY.md)). The signed-in app is intentionally
+not indexable.
 
 ## Troubleshooting
 
@@ -222,8 +233,10 @@ checks, tests, `bandit`, `pip-audit` and `npm audit`.
 
 ## Scope and status
 
-- **Verified live: Groq.** OpenAI catalog entries are included and ready to use once you add a key;
-  confirm model ids and prices on your account.
+- **Verified live: Groq.** OpenAI and Gemini catalog entries are included and ready to use once you
+  add a key, but they have not been tested against a live key; confirm model ids and prices on your
+  account. Groq's `qwen3.8-27b` is selectable by name but never auto-routed (see
+  [benchmarks](benchmarks/README.md)).
 - **Rule-based routing.** The difficulty score and `quality` setting choose the tier; there is no
   learned model. Catalog `quality` values are configured priors.
 - **Single instance.** Rate limits, cooldowns, cache and sessions are process-local.

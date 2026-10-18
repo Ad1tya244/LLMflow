@@ -78,6 +78,7 @@ class OpenAICompatibleProvider:
         self._client = client
         self._headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         self._url = f"{spec.base_url.rstrip('/')}/chat/completions"
+        self._stream_usage = spec.stream_usage
 
     async def chat(self, spec: ModelSpec, payload: dict[str, Any]) -> Completion:
         started = time.perf_counter()
@@ -97,7 +98,9 @@ class OpenAICompatibleProvider:
         return Completion(body=body, usage=_usage_from(body), latency_ms=latency_ms)
 
     async def stream(self, spec: ModelSpec, payload: dict[str, Any]) -> AsyncIterator[str]:
-        body = {**payload, "stream": True, "stream_options": {"include_usage": True}}
+        body = {**payload, "stream": True}
+        if self._stream_usage:
+            body["stream_options"] = {"include_usage": True}
         try:
             async with self._client.stream(
                 "POST", self._url, json=body, headers=self._headers

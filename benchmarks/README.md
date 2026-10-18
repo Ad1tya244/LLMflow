@@ -23,8 +23,8 @@ checks); there is **no LLM judge**. All results are **measured**; nothing here i
    straightforward work the cheaper tier is a safe default, and the router sends it there.
 3. **Model selection by evidence.** `qwen3.8-27b` delivered lower accuracy and a higher cost per
    correct answer than the two gpt-oss models on these suites (95% accuracy, +11% to +33% shadow cost
-   vs gpt-oss-120b), so it ships disabled in `catalog.yaml` (`enabled: false`); set it to `true`
-   to re-test.
+   vs gpt-oss-120b), so the router never picks it: it ships pin-only in `catalog.yaml` (`auto_route: false`), still
+   selectable by name. Set `auto_route: true` to re-test it in the routing pool.
 4. **The measurement loop works.** Fixed-model runs, deterministic scoring, resume-after-quota, a
    re-scoring tool for checker fixes, and a report generator all run end to end from one command.
 
@@ -33,7 +33,7 @@ checks); there is **no LLM judge**. All results are **measured**; nothing here i
 - Sample sizes are n=44 and n=21, so 95% intervals are roughly 8-15 points wide; differences under
   about 15 points are within noise.
 - Single provider, single day, free-tier latency (includes quota waiting and Groq queueing).
-- Shadow cost uses list prices from `catalog.yaml`; qwen's price is an approximation (none published).
+- Shadow cost uses list prices from `catalog.yaml`; qwen's price was approximated during these runs; Groq has since published $0.80 / $4.00 per 1M tokens, which only widens the cost gap.
 - One scoring-rule fix was applied after the first run (`fact-06` now accepts "Newton (N)"); the
   affected verdict was re-scored from stored responses and flagged in the report notes. Re-scoring
   skips truncated responses so a partial answer is never judged.

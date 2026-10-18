@@ -129,7 +129,7 @@ class Gateway:
         opts = request.llmflow
         plan = plan_route(
             analysis,
-            scope.enabled,
+            [m for m in scope.enabled if m.auto_route],  # pin-only models are skipped here
             self._quota,
             quality=opts.quality,
             strict_privacy=opts.privacy == "strict",

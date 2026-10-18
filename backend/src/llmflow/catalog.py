@@ -36,6 +36,9 @@ class ProviderSpec(BaseModel):
     base_url: str
     api_key_env: str
     trains_on_data: bool = False
+    # Ask for token usage on streamed replies (``stream_options.include_usage``). Turn off for a
+    # provider whose OpenAI-compatible layer rejects that option; streamed usage then reads 0.
+    stream_usage: bool = True
 
 
 class ModelSpec(BaseModel):
@@ -50,6 +53,8 @@ class ModelSpec(BaseModel):
     price_out: float = Field(ge=0, description="USD per 1M output tokens (shadow)")
     limits: Limits = Limits()
     enabled: bool = True  # operator switch; a model with enabled=false is never routed to
+    # false = never chosen by the router, but still listed and usable when a request names it
+    auto_route: bool = True
 
     def shadow_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
         return (prompt_tokens * self.price_in + completion_tokens * self.price_out) / 1_000_000

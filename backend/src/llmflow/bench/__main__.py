@@ -50,7 +50,7 @@ async def _run(args: argparse.Namespace) -> int:
     app = create_app(settings)
     async with app.router.lifespan_context(app):
         gw = app.state.gateway
-        models = list(gw.enabled_models)
+        models = [m for m in gw.enabled_models if m.auto_route]
         strategies = default_strategies(models)
         if args.strategies:
             wanted = set(args.strategies.split(","))
