@@ -1,84 +1,86 @@
-import type { ReactNode } from "react";
+import "katex/dist/katex.min.css";
+import { Check, Copy } from "lucide-react";
+import { isValidElement, useState, type ReactElement, type ReactNode } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 
-/** Small, dependency-free renderer for the Markdown subset models actually emit: paragraphs,
- *  headings, bullet/numbered lists, fenced code, inline code, bold and italics. It builds React
- *  elements (never HTML strings), so model output cannot inject markup. */
+/** Renders model output the way chat products do: headings, lists, tables, quotes, code blocks
+ *  with a copy button, links, and LaTeX math. Raw HTML in the reply is shown as text, never
+ *  rendered, and unsafe link schemes (``javascript:``) are dropped by react-markdown. */
 
-function inline(text: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  const re = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let k = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > last) out.push(text.slice(last, m.index));
-    const tok = m[0];
-    if (tok.startsWith("`")) out.push(<code key={k++}>{tok.slice(1, -1)}</code>);
-    else if (tok.startsWith("**")) out.push(<strong key={k++}>{tok.slice(2, -2)}</strong>);
-    else out.push(<em key={k++}>{tok.slice(1, -1)}</em>);
-    last = m.index + tok.length;
-  }
-  if (last < text.length) out.push(text.slice(last));
-  return out;
+// Models write math as \( … \) and \[ … \]; the Markdown math plugin expects $$ … $$.
+// Code is left untouched so a backslash in a snippet is never rewritten.
+export function normaliseMath(source: string): string {
+  const parts = source.split(/(```[\s\S]*?(?:```|$)|`[^`\n]+`)/g);
+  return parts
+    .map((part, i) =>
+      i % 2 === 1
+        ? part
+        : part
+            .replace(/\\\[([\s\S]+?)\\\]/g, (_m, body: string) => `\n\n$$\n${body.trim()}\n$$\n\n`)
+            .replace(/\\\(([\s\S]+?)\\\)/g, (_m, body: string) => `$$${body.trim()}$$`),
+    )
+    .join("");
 }
 
-export function Markdown({ source }: { source: string }) {
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  const blocks: ReactNode[] = [];
-  let i = 0;
-  let key = 0;
-  while (i < lines.length) {
-    const line = lines[i]!;
-    if (line.trim() === "") {
-      i++;
-      continue;
+function CodeBlock({ children }: { children?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const code = isValidElement(children)
+    ? (children as ReactElement<{ className?: string; children?: ReactNode }>)
+    : null;
+  const text = String(code?.props.children ?? "").replace(/\n$/, "");
+  const language = /language-([\w+-]+)/.exec(code?.props.className ?? "")?.[1];
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable: the code is still selectable */
     }
-    if (line.trimStart().startsWith("```")) {
-      const code: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i]!.trimStart().startsWith("```")) code.push(lines[i++]!);
-      i++; // closing fence (or end of a still-streaming block)
-      blocks.push(
-        <pre key={key++} className="md-code">
-          <code>{code.join("\n")}</code>
-        </pre>,
-      );
-      continue;
-    }
-    const heading = /^(#{1,4})\s+(.*)$/.exec(line);
-    if (heading) {
-      blocks.push(
-        <p key={key++} className="md-heading">
-          {inline(heading[2]!)}
-        </p>,
-      );
-      i++;
-      continue;
-    }
-    const bullet = /^\s*[-*]\s+/;
-    const numbered = /^\s*\d+[.)]\s+/;
-    if (bullet.test(line) || numbered.test(line)) {
-      const ordered = numbered.test(line);
-      const re = ordered ? numbered : bullet;
-      const items: ReactNode[] = [];
-      while (i < lines.length && re.test(lines[i]!)) {
-        items.push(<li key={items.length}>{inline(lines[i]!.replace(re, ""))}</li>);
-        i++;
-      }
-      blocks.push(ordered ? <ol key={key++}>{items}</ol> : <ul key={key++}>{items}</ul>);
-      continue;
-    }
-    const para: string[] = [];
-    while (
-      i < lines.length &&
-      lines[i]!.trim() !== "" &&
-      !lines[i]!.trimStart().startsWith("```") &&
-      !/^(#{1,4})\s/.test(lines[i]!) &&
-      !bullet.test(lines[i]!) &&
-      !numbered.test(lines[i]!)
-    )
-      para.push(lines[i++]!);
-    blocks.push(<p key={key++}>{inline(para.join("\n"))}</p>);
   }
-  return <div className="md">{blocks}</div>;
+
+  return (
+    <div className="md-codeblock">
+      <div className="md-codebar">
+        <span>{language ?? "text"}</span>
+        <button type="button" className="md-copy" onClick={() => void copy()} aria-label="Copy code">
+          {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre>{children}</pre>
+    </div>
+  );
+}
+
+const components: Components = {
+  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer nofollow">
+      {children}
+    </a>
+  ),
+  table: ({ children }) => (
+    <div className="md-table">
+      <table>{children}</table>
+    </div>
+  ),
+};
+
+export function Markdown({ source }: { source: string }) {
+  return (
+    <div className="md">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: "ignore" }]]}
+        components={components}
+      >
+        {normaliseMath(source)}
+      </ReactMarkdown>
+    </div>
+  );
 }

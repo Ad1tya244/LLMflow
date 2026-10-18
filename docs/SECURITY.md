@@ -72,10 +72,11 @@ Added 2026-10-14. Threat model: the gateway now stores *other people's* provider
 |---|---|
 | Encryption at rest | Fernet (AES-128-CBC + HMAC-SHA256) under `LLMFLOW_MASTER_KEY`. The tenant id and provider are bound inside the plaintext and verified on decrypt, so ciphertext cannot be moved between rows or tenants (tested). |
 | Key rotation | `LLMFLOW_MASTER_KEY` accepts a comma-separated list: first encrypts, all decrypt. |
-| Never returned | API responses expose only the last four characters; request bodies are not logged; validation errors never echo input. |
+| Masked by default | Listings expose only the last four characters; request bodies are not logged; validation errors never echo input. |
+| Viewing a saved key | `POST /account/provider-keys/{provider}/reveal` and `/account/api-keys/{id}/reveal` return the full secret only after the account password (and a current 2FA code when enabled) is re-entered. Wrong attempts count toward the per-IP throttle, responses are `Cache-Control: no-store`, every reveal is audited, and an API key cannot call them. The dashboard hides a revealed key after 60 seconds. |
 | Verified on save | The key is checked against the provider's `/models` (URL from the operator-controlled catalog, so no SSRF) and rejected on 401/403. |
 | Isolation | A workspace key routes only through that workspace's keys, with its own quota tracker, cache namespace, budget, rate limit and request log. The operator's provider keys are never used for a workspace. |
-| Workspace keys | `llmf_` + 256 bits of randomness, shown once, stored as SHA-256 only, rotatable, instantly revocable; failed lookups are throttled per IP. |
+| Workspace keys | `llmf_` + 256 bits of randomness; authentication uses a SHA-256 hash, so a database leak alone cannot be replayed. An encrypted copy (Fernet under the master key, bound to the tenant and key id) is kept in a separate `api_key_secret` table so the owner can view the key again after re-authenticating; keys made before this feature, and revoked keys, have none. Instantly revocable; failed lookups are throttled per IP. |
 | Authorization | Workspace keys cannot call `/admin/*`; operator/admin keys cannot call `/account/*`; sessions carry a role and are checked on every route (tested). |
 | Sign-up abuse | Off by default; optional invite code (constant-time compare); per-IP hourly limit. |
 | Decryption lifetime | Keys are decrypted lazily into provider objects held in a bounded, short-TTL cache and dropped on update/delete/rotate. |
@@ -95,6 +96,8 @@ Design change after review: the web UI is for **workspace users only**. Operator
 |---|---|
 | People vs. apps | Separate credentials. Email + password sessions manage a workspace; API keys call `/v1/*` only. An API key sent to `/account/*` gets 403, so a leaked key cannot add provider keys, mint keys, or read the audit log (tested). |
 | Passwords | argon2id (library-default parameters, re-hashed when parameters change), 12-128 characters with upper and lower case, a number and a symbol; no repeated or sequential runs (`aaaa`, `1234`, `qwer`), no common words, no email-name reuse (enforced when a password is set, not at sign-in). Wrong password and unknown email take the same hashing work and return the same message. |
+| Session management | The Account page lists the person's sessions (device, IP, times) and can end one or all others; each action is audited. Session state is process-local, so the list resets on restart. |
+| Deletion | `DELETE /auth/workspace` needs the password (failures count toward the IP throttle) and the exact workspace name, then removes users, API keys, provider keys, settings, audit events and request logs in one transaction and ends all sessions. |
 | Brute force | Per-IP throttle on failures plus a per-account lockout (5 failures, 15 min) that applies even to the correct password and is not revealed to the caller. |
 | Recovery | 10 one-time recovery codes (60 bits each, stored as hashes) reset the password without email; using one ends every session. Regenerating requires the password. |
 | Sessions | Random token in an HttpOnly cookie, hashed server-side, idle 30 min / absolute 12 h, per-session CSRF token required on every `/account` and `/auth` call, all sessions revoked on password change/recovery. |
@@ -136,3 +139,10 @@ TOTP (RFC 6238, SHA-1, 6 digits, 30 s; works with any authenticator app), option
 Residual: recovery codes bypass the second factor by design (they are the lost-device path), so
 they must be stored as carefully as the password. Password reset by recovery code does not disable MFA.
 
+## Rendering model output (2026-10-18)
+
+| Control | Detail |
+|---|---|
+| No raw HTML | Replies are rendered with `react-markdown`, which builds React elements and never injects HTML strings; HTML in a reply is shown as text. Unsafe link schemes (`javascript:`) are dropped, and links open with `rel="noopener noreferrer nofollow"` (tested). |
+| Math | KaTeX renders formulas with its `trust` option off. The dependency tree is pinned to a patched KaTeX (`overrides` in `dashboard/package.json`) and `npm audit` reports 0 vulnerabilities. |
+| CSP unchanged | Fonts and scripts are bundled and served from the same origin, so the strict Content-Security-Policy still applies; the Markdown/KaTeX code loads on demand, only on the Playground. |

@@ -810,3 +810,280 @@ def test_playground_cache_hit_on_repeat(env: Env, people: list[Person]) -> None:
     assert first.status_code == 200 and second.status_code == 200, (first.text, second.text)
     assert first.headers["x-llmflow-cache"] == "miss"
     assert second.headers["x-llmflow-cache"] == "hit"
+
+
+# --- workspace settings, sessions, deletion ---------------------------------------------------
+
+
+def _with_provider(env: Env, people: list[Person]) -> Person:
+    p = person(env, people)
+    assert save_key(p, "p1", "k-" + "a" * 20).status_code == 200
+    return p
+
+
+def test_settings_default_validate_and_audit(env: Env, people: list[Person]) -> None:
+    p = person(env, people)
+    got = p.client.get("/account/settings", headers=p.h).json()
+    assert got["cache_mode"] == "auto" and got["default_quality"] == "balanced"
+    assert got["daily_budget_usd"] is None and got["daily_token_budget"] is None
+    for bad in (
+        {"cache_mode": "sometimes"},
+        {"default_quality": "ultra"},
+        {"daily_budget_usd": -1},
+        {"daily_token_budget": 0},
+        {"unknown": 1},
+    ):
+        assert p.client.put("/account/settings", headers=p.h, json=bad).status_code == 422
+    ok = p.client.put(
+        "/account/settings",
+        headers=p.h,
+        json={"cache_mode": "always", "default_quality": "high", "daily_token_budget": 5000},
+    )
+    assert ok.status_code == 200 and ok.json()["cache_mode"] == "always"
+    assert p.client.get("/account/settings", headers=p.h).json()["daily_token_budget"] == 5000
+    log = p.client.get("/account/audit", headers=p.h).json()["events"]
+    assert any(e["action"] == "settings.changed" and "cache_mode" in e["detail"] for e in log)
+    # an API key can never read or change workspace settings
+    assert env.c.get("/account/settings", headers=p.bearer).status_code == 403
+
+
+def test_workspace_cache_mode_applies_without_per_request_option(
+    env: Env, people: list[Person]
+) -> None:
+    p = _with_provider(env, people)
+    assert (
+        env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY).headers["x-llmflow-cache"]
+        == "none"
+    )  # auto: a plain request is not cached
+    p.client.put("/account/settings", headers=p.h, json={"cache_mode": "always"})
+    first = env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY)
+    second = env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY)
+    assert (first.headers["x-llmflow-cache"], second.headers["x-llmflow-cache"]) == ("miss", "hit")
+    off = {**BODY, "llmflow": {"cache": "off"}}  # an explicit request option still wins
+    assert (
+        env.c.post("/v1/chat/completions", headers=p.bearer, json=off).headers["x-llmflow-cache"]
+        == "none"
+    )
+    p.client.put("/account/settings", headers=p.h, json={"cache_mode": "off"})
+    fresh = {**BODY, "messages": [{"role": "user", "content": "a different question"}]}
+    on = {**fresh, "llmflow": {"cache": "on"}}  # workspace says off; the request says on
+    assert (
+        env.c.post("/v1/chat/completions", headers=p.bearer, json=on).headers["x-llmflow-cache"]
+        == "miss"
+    )
+
+
+def test_workspace_default_quality_applies_unless_request_sets_it(
+    env: Env, people: list[Person]
+) -> None:
+    p = _with_provider(env, people)
+
+    def required(body: dict[str, Any]) -> str:
+        r = env.c.post("/v1/chat/completions", headers=p.bearer, json=body)
+        return str(r.headers["x-llmflow-route-reason"])
+
+    assert "quality>=0.30" in required(BODY)  # balanced default
+    p.client.put("/account/settings", headers=p.h, json={"default_quality": "high"})
+    assert "quality>=0.50" in required(BODY)
+    assert "quality>=0.20" in required({**BODY, "llmflow": {"quality": "low"}})
+
+
+def test_workspace_budget_blocks_further_requests_and_only_tightens(
+    env: Env, people: list[Person]
+) -> None:
+    p = _with_provider(env, people)
+    p.client.put("/account/settings", headers=p.h, json={"daily_token_budget": 10})
+    assert env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY).status_code == 200
+    blocked = env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY)
+    assert blocked.status_code == 429 and blocked.json()["error"]["type"] == "budget_exceeded"
+    other = _with_provider_other(env, people)  # another workspace is unaffected
+    assert env.c.post("/v1/chat/completions", headers=other.bearer, json=BODY).status_code == 200
+    p.client.put("/account/settings", headers=p.h, json={"daily_token_budget": None})
+    assert env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY).status_code == 200
+
+
+def _with_provider_other(env: Env, people: list[Person]) -> Person:
+    p = person(env, people, "other@example.com", "Other")
+    assert save_key(p, "p1", "k-" + "b" * 20).status_code == 200
+    return p
+
+
+def _second_login(env: Env, email: str = "alice@example.com") -> tuple[TestClient, dict[str, str]]:
+    other = TestClient(env.c.app)
+    other.__enter__()
+    r = other.post("/auth/login", json={"email": email, "password": PASSWORD})
+    assert r.status_code == 200, r.text
+    return other, {"x-llmflow-csrf": r.json()["csrf_token"]}
+
+
+def test_sessions_list_revoke_others_and_single(env: Env, people: list[Person]) -> None:
+    p = person(env, people)
+    other, other_h = _second_login(env)
+    try:
+        rows = p.client.get("/account/sessions", headers=p.h).json()["sessions"]
+        assert len(rows) == 2 and sum(r["current"] for r in rows) == 1
+        assert all(r["created_at"] > 0 and r["last_seen_at"] > 0 for r in rows)
+        current = next(r for r in rows if r["current"])["id"]
+        theirs = next(r for r in rows if not r["current"])["id"]
+        assert p.client.delete(f"/account/sessions/{current}", headers=p.h).status_code == 400
+        assert p.client.delete("/account/sessions/nope", headers=p.h).status_code == 404
+        assert p.client.delete(f"/account/sessions/{theirs}", headers=p.h).status_code == 200
+        assert other.get("/account", headers=other_h).status_code == 401  # that device is out
+        again, again_h = _second_login(env)
+        try:
+            revoked = p.client.post("/account/sessions/revoke-others", headers=p.h).json()
+            assert revoked == {"revoked": 1}
+            assert again.get("/account", headers=again_h).status_code == 401
+            assert p.client.get("/account", headers=p.h).status_code == 200  # this one survives
+        finally:
+            again.__exit__(None, None, None)
+    finally:
+        other.__exit__(None, None, None)
+    audit = p.client.get("/account/audit", headers=p.h).json()["events"]
+    assert sum(e["action"] == "session.revoked" for e in audit) == 2
+    # sessions are per person: an API key cannot list them
+    assert env.c.get("/account/sessions", headers=p.bearer).status_code == 403
+
+
+def test_delete_workspace_needs_password_and_name_then_erases_everything(
+    env: Env, people: list[Person]
+) -> None:
+    p = _with_provider(env, people)
+    assert env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY).status_code == 200
+    p.client.put("/account/settings", headers=p.h, json={"cache_mode": "always"})
+    url = "/auth/workspace"
+
+    def attempt(password: str, name: str) -> Any:
+        return p.client.request(
+            "DELETE", url, headers=p.h, json={"password": password, "confirm_name": name}
+        )
+
+    assert attempt("wrong password", "Acme").status_code == 403
+    assert attempt(PASSWORD, "acme").status_code == 422  # name must match exactly
+    assert p.client.get("/account", headers=p.h).status_code == 200  # nothing deleted yet
+    assert attempt(PASSWORD, "Acme").status_code == 200
+
+    assert p.client.get("/account", headers=p.h).status_code == 401  # signed out
+    assert env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY).status_code == 401
+    gone = env.c.post("/auth/login", json={"email": "alice@example.com", "password": PASSWORD})
+    assert gone.status_code == 401
+    with sqlite3.connect(env.db) as conn:
+        for table, col in (
+            ("tenant", "id"),
+            ("app_user", "tenant_id"),
+            ("api_key", "tenant_id"),
+            ("tenant_provider_key", "tenant_id"),
+            ("audit_event", "tenant_id"),
+            ("workspace_settings", "tenant_id"),
+            ("request_log", "key_id"),
+        ):
+            count = conn.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE {col} = ?",  # noqa: S608 - fixed names
+                (p.tenant_id,),
+            ).fetchone()[0]
+            assert count == 0, table
+    # the email can be used again for a brand-new workspace
+    Person(env, "alice@example.com", "Fresh").close()
+
+
+# --- viewing saved keys again (re-authentication required) ------------------------------------
+
+
+def _reveal(p: Person, path: str, password: str = PASSWORD, code: str | None = None) -> Any:
+    body: dict[str, Any] = {"password": password}
+    if code is not None:
+        body["code"] = code
+    return p.client.post(path, headers=p.h, json=body)
+
+
+def test_reveal_provider_key_needs_password_is_audited_and_never_cached(
+    env: Env, people: list[Person]
+) -> None:
+    p = person(env, people)
+    secret = "gsk_FAKE_reveal_value_for_tests_9876"
+    assert save_key(p, "p1", secret).status_code == 200
+    url = "/account/provider-keys/p1/reveal"
+
+    assert _reveal(p, url, "wrong password").status_code == 403
+    assert (
+        env.c.post(url, headers=p.bearer, json={"password": PASSWORD}).status_code == 403
+    )  # API key
+    assert _reveal(p, "/account/provider-keys/p2/reveal").status_code == 404  # nothing saved there
+
+    ok = _reveal(p, url)
+    assert ok.status_code == 200 and ok.json() == {"api_key": secret}
+    assert ok.headers["cache-control"] == "no-store"
+    log = p.client.get("/account/audit", headers=p.h).json()["events"]
+    assert any(e["action"] == "provider_key.revealed" and e["detail"] == "p1" for e in log)
+    assert secret not in str(log)  # the log records the event, never the value
+    # the normal account view still never carries the key
+    assert secret not in p.client.get("/account", headers=p.h).text
+
+
+def test_reveal_api_key_roundtrip_stored_encrypted_and_blocked_after_revoke(
+    env: Env, people: list[Person]
+) -> None:
+    p = person(env, people)
+    keys = p.client.get("/account/api-keys", headers=p.h).json()["keys"]
+    assert keys[0]["revealable"] is True  # the key created at sign-up can be shown again
+    first = _reveal(p, f"/account/api-keys/{keys[0]['id']}/reveal")
+    assert first.status_code == 200 and first.json()["api_key"] == p.api_key
+
+    made = p.client.post("/account/api-keys", headers=p.h, json={"name": "second"}).json()
+    assert made["revealable"] is True
+    again = _reveal(p, f"/account/api-keys/{made['id']}/reveal")
+    assert again.json()["api_key"] == made["api_key"]
+    assert env.c.post(
+        "/v1/chat/completions",
+        headers={"Authorization": f"Bearer {again.json()['api_key']}"},
+        json=BODY,
+    ).status_code in (200, 503)  # the revealed key is a working credential
+
+    assert _reveal(p, f"/account/api-keys/{made['id']}/reveal", "nope").status_code == 403
+    with sqlite3.connect(env.db) as conn:
+        stored = " ".join(
+            str(v) for row in conn.execute("SELECT * FROM api_key_secret") for v in row
+        )
+    assert made["api_key"] not in stored and p.api_key not in stored and "gAAAA" in stored
+
+    assert p.client.delete(f"/account/api-keys/{made['id']}", headers=p.h).status_code == 200
+    assert _reveal(p, f"/account/api-keys/{made['id']}/reveal").status_code == 404  # revoked
+    rows = p.client.get("/account/api-keys", headers=p.h).json()["keys"]
+    assert next(k for k in rows if k["id"] == made["id"])["revealable"] is False
+    assert _reveal(p, "/account/api-keys/k_unknown/reveal").status_code == 404
+    audit = p.client.get("/account/audit", headers=p.h).json()["events"]
+    assert sum(e["action"] == "api_key.revealed" for e in audit) == 2
+
+
+def test_reveal_requires_the_second_factor_when_enabled(env: Env, people: list[Person]) -> None:
+    p = person(env, people)
+    assert save_key(p, "p1", "gsk_FAKE_mfa_reveal_value_0001").status_code == 200
+    secret = _enable_mfa(p)
+    url = "/account/provider-keys/p1/reveal"
+    assert _reveal(p, url).status_code == 403  # password alone is not enough now
+    assert _reveal(p, url, code="000000").status_code == 403
+    step = totp.current_step() + 1  # the enabling step cannot be replayed
+    ok = _reveal(p, url, code=totp.code_at(secret, step))
+    assert ok.status_code == 200 and ok.json()["api_key"] == "gsk_FAKE_mfa_reveal_value_0001"
+    assert _reveal(p, url, code=totp.code_at(secret, step)).status_code == 403  # no replay
+
+
+def test_deleting_a_workspace_erases_stored_api_key_secrets(env: Env, people: list[Person]) -> None:
+    p = person(env, people)
+    with sqlite3.connect(env.db) as conn:
+        before = conn.execute(
+            "SELECT COUNT(*) FROM api_key_secret WHERE tenant_id = ?", (p.tenant_id,)
+        ).fetchone()[0]
+    assert before == 1
+    gone = p.client.request(
+        "DELETE",
+        "/auth/workspace",
+        headers=p.h,
+        json={"password": PASSWORD, "confirm_name": "Acme"},
+    )
+    assert gone.status_code == 200
+    with sqlite3.connect(env.db) as conn:
+        after = conn.execute(
+            "SELECT COUNT(*) FROM api_key_secret WHERE tenant_id = ?", (p.tenant_id,)
+        ).fetchone()[0]
+    assert after == 0

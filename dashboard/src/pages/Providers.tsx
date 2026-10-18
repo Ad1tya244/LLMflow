@@ -1,6 +1,8 @@
-import { Check, KeyRound, ShieldAlert } from "lucide-react";
+import { Check, Eye, KeyRound, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { Gate } from "../components/Gate";
+import { PasswordInput } from "../components/PasswordInput";
+import { RevealSecret } from "../components/RevealSecret";
 import { ErrorBanner, PageHeader, Skeleton, StatusBadge } from "../components/ui";
 import { api } from "../lib/api";
 import { compact, usd } from "../lib/format";
@@ -20,6 +22,7 @@ function ProviderRow({
   const { conn } = useConnection();
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function save() {
@@ -84,12 +87,9 @@ function ProviderRow({
             <label htmlFor={`key-${provider.id}`}>
               {provider.configured ? "Replace API key" : "API key"}
             </label>
-            <input
+            <PasswordInput
               id={`key-${provider.id}`}
-              className="input"
-              type="password"
               autoComplete="off"
-              spellCheck={false}
               placeholder="Paste your provider API key"
               value={key}
               onChange={(e) => setKey(e.target.value)}
@@ -100,11 +100,26 @@ function ProviderRow({
             {busy ? "Verifying…" : "Verify and save"}
           </button>
           {provider.configured && (
+            <button className="btn" disabled={busy || viewing} onClick={() => setViewing(true)}>
+              <Eye size={14} aria-hidden />
+              View key
+            </button>
+          )}
+          {provider.configured && (
             <button className="btn" disabled={busy} onClick={() => void remove()}>
               Remove
             </button>
           )}
         </div>
+        {viewing && (
+          <RevealSecret
+            title={`${provider.id} API key`}
+            reveal={async (password, code) =>
+              (await api.revealProviderKey(conn, provider.id, password, code)).api_key
+            }
+            onClose={() => setViewing(false)}
+          />
+        )}
         {message && (
           <span role="status" className={message.ok ? "badge good" : "badge bad"}>
             {message.ok && <Check size={12} aria-hidden />}
@@ -139,8 +154,8 @@ function Body() {
           <div className="banner" role="note">
             <KeyRound size={16} aria-hidden />
             <div className="grow">
-              Keys are verified with the provider, encrypted at rest and in transit, and never shown again (only the last
-              four characters). Use a dedicated key with a spend limit, not your main one. Today: {compact(data.usage_today.tokens)} tokens ·{" "}
+              Keys are verified with the provider and encrypted at rest and in transit. Only the last four characters
+              are shown here; use <b>View key</b> to see a saved key after confirming your password. Use a dedicated key with a spend limit, not your main one. Today: {compact(data.usage_today.tokens)} tokens ·{" "}
               {usd(data.usage_today.shadow_cost_usd)} shadow cost.
             </div>
           </div>

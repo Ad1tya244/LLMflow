@@ -189,7 +189,7 @@ reply = client.chat.completions.create(
               <div className="lp-step">
                 <div className="lp-num">01</div>
                 <h3>Add your provider keys</h3>
-                <p>Paste a key from your AI provider, such as Groq. LLMFlow checks it with the provider, stores it encrypted at rest and in transit, and never displays it again.</p>
+                <p>Paste a key from your AI provider, such as Groq. LLMFlow checks it with the provider, stores it encrypted at rest and in transit, and shows it again only after you confirm your password.</p>
               </div>
               <div className="lp-step">
                 <div className="lp-num">02</div>
@@ -264,7 +264,7 @@ reply = client.chat.completions.create(
                 actions are recorded in an audit log.
               </p>
               <ul className="lp-list">
-                <li><ShieldCheck size={18} aria-hidden /><span><b>Encrypted provider keys.</b> Encrypted at rest and in transit, scoped to your workspace, and never shown again after you save them.</span></li>
+                <li><ShieldCheck size={18} aria-hidden /><span><b>Encrypted provider keys.</b> Encrypted at rest and in transit, scoped to your workspace, and shown again only after you confirm your password.</span></li>
                 <li><Layers size={18} aria-hidden /><span><b>Separate credentials.</b> People sign in with a password and optional two-factor authentication. Applications use API keys that you can revoke and that cannot change workspace settings.</span></li>
                 <li><Check size={18} aria-hidden /><span><b>Protected accounts.</b> Passwords are hashed with argon2id, repeated failed sign-ins lock the account temporarily, and one-time recovery codes are provided.</span></li>
                 <li><Check size={18} aria-hidden /><span><b>Your data stays private.</b> LLMFlow never stores your prompts or responses. The request log keeps only metadata: model, token counts, latency and cost.</span></li>

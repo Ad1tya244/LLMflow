@@ -25,19 +25,22 @@ caches deterministic requests, enforces budgets, and shows you what it did and w
 - **Cost-aware routing**: a transparent difficulty score and a `quality` dial pick the cheapest model
   that meets a quality bar; every response carries `x-llmflow-*` headers explaining the decision.
 - **Bring your own keys**: each workspace adds its own provider keys, encrypted at rest and sent
-  only over TLS on hosted deployments. They are never shown again and used only for that
-  workspace's requests.
+  only over TLS on hosted deployments. They are masked in the dashboard, shown again only
+  after you re-enter your password, and used only for that workspace's requests.
 - **Resilience**: per-model quota tracking, cooldowns that honour `Retry-After`, bounded fallback
   across models, streaming fallback before the first byte.
 - **Cost controls**: exact-match response cache, per-workspace rate limits, and daily token and
-  cost budgets.
+  cost budgets. A **Workspace** settings page sets the caching mode (auto / always / off), the
+  default quality and daily limits for every request from your apps.
 - **Observability**: usage, latency, tier mix and "shadow cost" (what the same tokens would cost at
   paid list prices), a request log with routing reasons, and a per-workspace security audit log.
 - **Security-first accounts**: email + password (argon2id) with a complexity policy, lockout,
   one-time recovery codes, optional TOTP two-factor, and named, revocable API keys that cannot
   manage the workspace.
-- **Web dashboard**: public landing page, then Overview, Requests, Providers, API keys, Connect and
-  a Playground that renders replies as formatted text and shows the routing decision.
+- **Web dashboard**: public landing page, then Overview (with a first-run checklist), Requests,
+  Providers, API keys, Workspace settings, Connect and a Playground that renders replies as
+  formatted Markdown (tables, lists, code with a copy button, math) and shows the routing decision. The Account page lists active sessions (sign out
+  any device) and can permanently delete the workspace and its data.
 - **Reproducible benchmark and router evaluation**: fixed-model runs on public and generated suites,
   with offline replay of routing policies ([results](benchmarks/README.md)).
 
@@ -128,11 +131,12 @@ own point on the curve per request. Method, data and caveats: [benchmarks/README
 | Concern | Approach |
 |---|---|
 | People vs. apps | Humans use email + password sessions; apps use API keys. An API key cannot manage the workspace. |
-| Provider keys | Verified on save, encrypted at rest (Fernet) under `LLMFLOW_MASTER_KEY`, bound to tenant and provider, never returned (last four only). Sent over TLS on hosted deployments. |
+| Provider keys | Verified on save, encrypted at rest (Fernet) under `LLMFLOW_MASTER_KEY`, bound to tenant and provider, masked in the UI (last four only) and returned only after password (and 2FA) re-confirmation, which is audited. Sent over TLS on hosted deployments. |
 | Passwords / keys | argon2id passwords with a complexity policy (length, mixed case, number, symbol, no sequences or common words); API keys and recovery codes stored only as hashes. |
-| Sessions | HttpOnly cookie + per-session CSRF token; idle and absolute timeouts; revoked on password change. |
+| Sessions | HttpOnly cookie + per-session CSRF token; idle and absolute timeouts; revoked on password change; listed on the Account page so any device can be signed out. |
 | Abuse | Per-IP and per-account throttling, request size/shape limits, parameter allow-list for upstream calls. |
 | Visibility | Per-workspace audit log; no prompts or secrets are logged or stored. |
+| Deletion | A workspace owner can erase the workspace, keys, request history and audit log (password and workspace name required). |
 
 Full threat model, controls, residual risks and operator duties: [docs/SECURITY.md](docs/SECURITY.md).
 **Back up `LLMFLOW_MASTER_KEY`**: without it, stored provider keys cannot be recovered.
@@ -239,6 +243,7 @@ checks, tests, `bandit`, `pip-audit` and `npm audit`.
 - GSM8K sample (`benchmarks/suite/gsm8k36.jsonl`): public test set from
   [openai/grade-school-math](https://github.com/openai/grade-school-math), MIT license.
 - Geist Sans and Geist Mono (dashboard): SIL Open Font License, bundled via `@fontsource`.
+- KaTeX (math rendering in the Playground): MIT license, with its bundled math fonts.
 
 ## License
 

@@ -25,10 +25,11 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
 
-from llmflow.storage.usage import Base
+from llmflow.storage.usage import Base, RequestLog
 
 KEY_PREFIX = "llmf_"
 _LAST_USED_GRANULARITY_S = 60.0
+_SETTINGS_TTL_S = 30.0
 
 
 def hash_key(raw: str) -> str:
@@ -84,6 +85,32 @@ class ApiKeyRow(Base):
     revoked_at: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class WorkspaceSettingsRow(Base):
+    """Per-workspace defaults. A separate table (not columns on ``tenant``) so existing
+    databases pick it up automatically without a migration."""
+
+    __tablename__ = "workspace_settings"
+
+    tenant_id: Mapped[str] = mapped_column(String(24), primary_key=True)
+    cache_mode: Mapped[str] = mapped_column(String(8), default="auto")  # auto | always | off
+    default_quality: Mapped[str] = mapped_column(String(8), default="balanced")
+    daily_budget_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    daily_token_budget: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class ApiKeySecretRow(Base):
+    """Encrypted copy of an application API key so its owner can view it again after
+    re-authenticating. A separate table so older databases need no migration; keys created
+    before this existed simply have no row and cannot be shown again."""
+
+    __tablename__ = "api_key_secret"
+
+    key_id: Mapped[str] = mapped_column(String(24), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(24), index=True)
+    ciphertext: Mapped[str] = mapped_column(Text)
+
+
 class RecoveryCodeRow(Base):
     __tablename__ = "recovery_code"
 
@@ -118,6 +145,14 @@ class ProviderKeyRow(Base):
 
 
 # --- value objects ------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceSettings:
+    cache_mode: str = "auto"
+    default_quality: str = "balanced"
+    daily_budget_usd: float | None = None
+    daily_token_budget: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +217,7 @@ def _key(r: ApiKeyRow) -> ApiKey:
 class TenantRepo:
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
+        self._settings_cache: dict[str, tuple[float, WorkspaceSettings]] = {}
 
     # --- workspaces and users -----------------------------------------------------------
 
@@ -331,11 +367,55 @@ class TenantRepo:
             ).scalars().all()  # fmt: skip
             if users:
                 await s.execute(delete(RecoveryCodeRow).where(RecoveryCodeRow.user_id.in_(users)))
-            for model in (UserRow, ApiKeyRow, ProviderKeyRow, AuditRow):
+            for model in (
+                UserRow,
+                ApiKeyRow,
+                ApiKeySecretRow,
+                ProviderKeyRow,
+                AuditRow,
+                WorkspaceSettingsRow,
+            ):
                 await s.execute(delete(model).where(model.tenant_id == tenant_id))
+            await s.execute(delete(RequestLog).where(RequestLog.key_id == tenant_id))
             await s.delete(row)
             await s.commit()
+        self._settings_cache.pop(tenant_id, None)
         return True
+
+    # --- workspace settings -------------------------------------------------------------
+
+    async def get_settings(self, tenant_id: str) -> WorkspaceSettings:
+        """Defaults for a workspace. Cached briefly because it is read on every request;
+        ``put_settings`` refreshes the cache (single instance)."""
+        now = time.monotonic()
+        hit = self._settings_cache.get(tenant_id)
+        if hit is not None and hit[0] > now:
+            return hit[1]
+        async with self._sessions() as s:
+            row = await s.get(WorkspaceSettingsRow, tenant_id)
+        value = (
+            WorkspaceSettings()
+            if row is None
+            else WorkspaceSettings(
+                row.cache_mode, row.default_quality, row.daily_budget_usd, row.daily_token_budget
+            )
+        )
+        self._settings_cache[tenant_id] = (now + _SETTINGS_TTL_S, value)
+        return value
+
+    async def put_settings(self, tenant_id: str, value: WorkspaceSettings) -> None:
+        async with self._sessions() as s:
+            row = await s.get(WorkspaceSettingsRow, tenant_id)
+            if row is None:
+                row = WorkspaceSettingsRow(tenant_id=tenant_id)
+                s.add(row)
+            row.cache_mode = value.cache_mode
+            row.default_quality = value.default_quality
+            row.daily_budget_usd = value.daily_budget_usd
+            row.daily_token_budget = value.daily_token_budget
+            row.updated_at = time.time()
+            await s.commit()
+        self._settings_cache[tenant_id] = (time.monotonic() + _SETTINGS_TTL_S, value)
 
     # --- API keys (used by applications on /v1) ------------------------------------------
 
@@ -373,8 +453,39 @@ class TenantRepo:
             if row is None or row.revoked_at is not None:
                 return False
             row.revoked_at = time.time()
+            await s.execute(delete(ApiKeySecretRow).where(ApiKeySecretRow.key_id == key_id))
             await s.commit()
         return True
+
+    async def store_api_key_secret(self, tenant_id: str, key_id: str, ciphertext: str) -> None:
+        async with self._sessions() as s:
+            s.add(ApiKeySecretRow(key_id=key_id, tenant_id=tenant_id, ciphertext=ciphertext))
+            await s.commit()
+
+    async def api_key_secret(self, tenant_id: str, key_id: str) -> str | None:
+        """Ciphertext for an active key of this tenant, else None."""
+        async with self._sessions() as s:
+            row = (
+                await s.execute(
+                    select(ApiKeySecretRow)
+                    .join(ApiKeyRow, ApiKeyRow.id == ApiKeySecretRow.key_id)
+                    .where(
+                        ApiKeySecretRow.key_id == key_id,
+                        ApiKeySecretRow.tenant_id == tenant_id,
+                        ApiKeyRow.revoked_at.is_(None),
+                    )
+                )
+            ).scalar_one_or_none()
+            return None if row is None else row.ciphertext
+
+    async def revealable_key_ids(self, tenant_id: str) -> set[str]:
+        async with self._sessions() as s:
+            rows = (
+                await s.execute(
+                    select(ApiKeySecretRow.key_id).where(ApiKeySecretRow.tenant_id == tenant_id)
+                )
+            ).scalars()
+            return set(rows)
 
     async def tenant_for_api_key(self, raw: str) -> tuple[Tenant, ApiKey] | None:
         """Resolve a presented API key (by hash) to its workspace; revoked keys never match."""

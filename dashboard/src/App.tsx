@@ -13,6 +13,7 @@ import { Playground } from "./pages/Playground";
 import { Providers } from "./pages/Providers";
 import { Requests } from "./pages/Requests";
 import { Settings } from "./pages/Settings";
+import { WorkspacePage } from "./pages/Workspace";
 
 export function App() {
   const route = useRoute();
@@ -45,6 +46,7 @@ export function App() {
         {route === "keys" && <ApiKeys />}
         {route === "connect" && <Connect />}
         {route === "playground" && <Playground />}
+        {route === "workspace" && <WorkspacePage />}
         {route === "settings" && <Settings />}
       </ErrorBoundary>
     </Shell>

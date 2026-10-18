@@ -58,3 +58,23 @@ export function niceTicks(max: number, target = 4): number[] {
 export function pricePerM(n: number): string {
   return n < 0.1 && n > 0 ? n.toFixed(3) : n.toFixed(2);
 }
+
+/** Short, human label for a User-Agent string, e.g. "Chrome on macOS". */
+export function deviceLabel(userAgent: string): string {
+  if (!userAgent) return "Unknown device";
+  const browser =
+    /Edg\//.test(userAgent) ? "Edge"
+    : /OPR\/|Opera/.test(userAgent) ? "Opera"
+    : /Firefox\//.test(userAgent) ? "Firefox"
+    : /Chrome\/|CriOS/.test(userAgent) ? "Chrome"
+    : /Safari\//.test(userAgent) ? "Safari"
+    : "Browser";
+  const os =
+    /iPhone|iPad|iPod/.test(userAgent) ? "iOS"
+    : /Android/.test(userAgent) ? "Android"
+    : /Windows/.test(userAgent) ? "Windows"
+    : /Mac OS X|Macintosh/.test(userAgent) ? "macOS"
+    : /Linux|X11/.test(userAgent) ? "Linux"
+    : "unknown OS";
+  return `${browser} on ${os}`;
+}

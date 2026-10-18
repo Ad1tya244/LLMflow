@@ -37,7 +37,7 @@ from llmflow.security.vault import KeyVault, VaultError
 from llmflow.service import AUTO_MODEL, Gateway, RouteMeta, Scope
 from llmflow.storage.tenants import TenantRepo
 from llmflow.storage.usage import UsageRepo
-from llmflow.tenancy import TenantScopes
+from llmflow.tenancy import TenantScopes, apply_workspace_settings
 
 log = logging.getLogger(__name__)
 
@@ -277,6 +277,11 @@ def create_app(
         body: ChatRequest, request: Request, key_id: str, scope: Scope | None = None
     ) -> JSONResponse | StreamingResponse:
         gw: Gateway = request.app.state.gateway
+        repo: TenantRepo | None = request.app.state.tenants
+        if scope is not None and repo is not None:  # a workspace caller: apply its defaults
+            workspace = await repo.get_settings(key_id)
+            body = apply_workspace_settings(body, workspace)
+            gw.budget.set_limits(key_id, workspace.daily_budget_usd, workspace.daily_token_budget)
         wait = request.app.state.key_limiter.acquire(key_id)
         if wait is not None:
             raise GatewayError(

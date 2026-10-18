@@ -73,6 +73,8 @@ export interface ApiKeyInfo {
   created_at: number;
   last_used_at: number | null;
   revoked_at: number | null;
+  /** True when the full key can be shown again after re-entering the password. */
+  revealable?: boolean;
 }
 
 export interface AuditEvent {
@@ -108,3 +110,20 @@ export interface AccountInfo {
   limits: { daily_budget_usd: number | null; daily_token_budget: number | null; rate_limit_rpm: number };
 }
 
+
+export interface WorkspaceSettings {
+  cache_mode: "auto" | "always" | "off";
+  default_quality: "low" | "balanced" | "high";
+  daily_budget_usd: number | null;
+  daily_token_budget: number | null;
+  platform_caps: { daily_budget_usd: number | null; daily_token_budget: number | null };
+}
+
+export interface SessionRow {
+  id: string;
+  created_at: number;
+  last_seen_at: number;
+  ip: string;
+  user_agent: string;
+  current: boolean;
+}

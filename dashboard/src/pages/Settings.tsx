@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Gate } from "../components/Gate";
+import { PasswordInput } from "../components/PasswordInput";
 import { SecretBlock } from "../components/Secrets";
 import { ErrorBanner, PageHeader, PasswordRules, Skeleton } from "../components/ui";
 import { passwordAcceptable } from "../lib/passwordRules";
 import { api } from "../lib/api";
-import { dateTime } from "../lib/format";
+import { dateTime, deviceLabel } from "../lib/format";
 import { useConnection } from "../lib/store";
 import { useAsync } from "../lib/useAsync";
 
@@ -23,7 +24,180 @@ const ACTION_LABEL: Record<string, string> = {
   "api_key.revoked": "API key revoked",
   "provider_key.saved": "Provider key saved",
   "provider_key.removed": "Provider key removed",
+  "settings.changed": "Workspace settings changed",
+  "session.revoked": "Session signed out",
 };
+
+function SessionsPanel() {
+  const { conn } = useConnection();
+  const sessions = useAsync(() => api.sessions(conn), [conn]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const rows = sessions.data?.sessions ?? [];
+  const others = rows.filter((r) => !r.current).length;
+
+  async function run(action: () => Promise<string>) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      setMsg({ ok: true, text: await action() });
+      sessions.reload();
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="card-intro">
+          <h2 className="section-title">Active sessions</h2>
+          <span className="section-note">Where you are signed in. Sign out any you do not recognise.</span>
+        </div>
+        <button
+          className="btn"
+          disabled={busy || others === 0}
+          onClick={() =>
+            void run(async () => {
+              const r = await api.revokeOtherSessions(conn);
+              return `Signed out ${r.revoked} other session${r.revoked === 1 ? "" : "s"}.`;
+            })
+          }
+        >
+          Sign out other sessions
+        </button>
+      </div>
+      {sessions.error && <ErrorBanner message={sessions.error.message} onRetry={sessions.reload} />}
+      {!sessions.data && sessions.loading && (
+        <div className="panel-body">
+          <Skeleton height={24} />
+        </div>
+      )}
+      {sessions.data && (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>IP</th>
+                <th>Signed in</th>
+                <th>Last active</th>
+                <th aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    {deviceLabel(r.user_agent)} {r.current && <span className="badge good">This device</span>}
+                  </td>
+                  <td className="mono muted">{r.ip || "–"}</td>
+                  <td className="muted">{dateTime(r.created_at, true)}</td>
+                  <td className="muted">{dateTime(r.last_seen_at, true)}</td>
+                  <td style={{ textAlign: "right" }}>
+                    {!r.current && (
+                      <button
+                        className="btn ghost"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            await api.revokeSession(conn, r.id);
+                            return "Session signed out.";
+                          })
+                        }
+                      >
+                        Sign out
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {msg && (
+        <div className="panel-body">
+          <span role="status" className={msg.ok ? "badge good" : "badge bad"}>
+            {msg.text}
+          </span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DangerZone({ workspaceName }: { workspaceName: string }) {
+  const { conn, signOut } = useConnection();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready = password.length > 0 && name.trim() === workspaceName;
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteWorkspace(conn, password, name.trim());
+      await signOut();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setPassword("");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="panel panel-body stack danger-zone">
+      <div className="card-intro">
+        <h2 className="section-title">Delete workspace</h2>
+        <p className="muted">
+          Permanently deletes this workspace, its provider keys, API keys, request history and security log. Your
+          apps stop working immediately. This cannot be undone.
+        </p>
+      </div>
+      {!open ? (
+        <div>
+          <button className="btn" onClick={() => setOpen(true)}>
+            Delete this workspace…
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="form-row">
+            <div className="field grow">
+              <label htmlFor="del-name">
+                Type the workspace name (<b>{workspaceName}</b>) to confirm
+              </label>
+              <input id="del-name" className="input" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="field grow">
+              <label htmlFor="del-pw">Your password</label>
+              <PasswordInput id="del-pw" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <button className="btn danger" disabled={busy || !ready} onClick={() => void remove()}>
+              {busy ? "Deleting…" : "Permanently delete workspace"}
+            </button>
+            <button className="btn ghost" disabled={busy} onClick={() => { setOpen(false); setName(""); setPassword(""); setError(null); }}>
+              Cancel
+            </button>
+            {error && (
+              <span role="alert" className="badge bad">
+                {error}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
 
 function Body() {
   const { conn, profile, signOut } = useConnection();
@@ -120,16 +294,16 @@ function Body() {
         </div>
         <div className="field">
           <label htmlFor="cur">Current password</label>
-          <input id="cur" className="input" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+          <PasswordInput id="cur" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="new">New password</label>
-          <input id="new" className="input" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
+          <PasswordInput id="new" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
           <PasswordRules password={next} email={profile?.user.email} />
         </div>
         <div className="field">
           <label htmlFor="conf">Confirm new password</label>
-          <input id="conf" className="input" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <PasswordInput id="conf" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </div>
         <div className="form-row">
           <button className="btn primary" disabled={busy || !current || !passwordAcceptable(next, profile?.user.email)} onClick={() => void changePassword()}>
@@ -157,7 +331,7 @@ function Body() {
             <div className="form-row">
               <div className="field grow">
                 <label htmlFor="mfa-pw">Password</label>
-                <input id="mfa-pw" className="input" type="password" autoComplete="current-password" value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} />
+                <PasswordInput id="mfa-pw" autoComplete="current-password" value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} />
               </div>
               <div className="field">
                 <label htmlFor="mfa-code">Current code</label>
@@ -197,7 +371,7 @@ function Body() {
             <div className="form-row">
               <div className="field grow">
                 <label htmlFor="mfa-start">Confirm with your password</label>
-                <input id="mfa-start" className="input" type="password" autoComplete="current-password" value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} />
+                <PasswordInput id="mfa-start" autoComplete="current-password" value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} />
               </div>
               <button
                 className="btn primary"
@@ -223,7 +397,7 @@ function Body() {
         <div className="form-row">
           <div className="field grow">
             <label htmlFor="rcp">Confirm with your password</label>
-            <input id="rcp" className="input" type="password" autoComplete="current-password" value={rcPassword} onChange={(e) => setRcPassword(e.target.value)} />
+            <PasswordInput id="rcp" autoComplete="current-password" value={rcPassword} onChange={(e) => setRcPassword(e.target.value)} />
           </div>
           <button className="btn" disabled={busy || !rcPassword} onClick={() => void regenerate()}>
             Generate new codes
@@ -240,6 +414,8 @@ function Body() {
 
         </div>
       </div>
+
+      <SessionsPanel />
 
       <section className="panel">
         <div className="panel-head">
@@ -279,6 +455,8 @@ function Body() {
           </div>
         )}
       </section>
+
+      <DangerZone workspaceName={profile?.workspace.name ?? ""} />
     </>
   );
 }

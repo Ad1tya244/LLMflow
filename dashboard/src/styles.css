@@ -281,13 +281,36 @@ td.sub-row { white-space: normal; background: var(--surface-2); color: var(--tex
 .split { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
 .response { min-height: 120px; line-height: 1.65; overflow-wrap: anywhere; }
 .response-plain { white-space: pre-wrap; }
-.md > * + * { margin-top: 12px; }
-.md p { white-space: pre-wrap; }
-.md .md-heading { font-weight: 600; font-size: 15px; }
-.md ul, .md ol { padding-left: 22px; display: grid; gap: 6px; }
-.md code { font-family: var(--font-mono); font-size: 0.9em; padding: 1px 5px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--border); }
-.md .md-code { margin: 0; padding: 14px 16px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); overflow-x: auto; line-height: 1.6; }
-.md .md-code code { padding: 0; border: 0; background: none; font-size: 13px; }
+.md { font-size: 14.5px; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 12px; }
+.md h1, .md h2, .md h3, .md h4 { margin: 20px 0 8px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
+.md h1 { font-size: 20px; }
+.md h2 { font-size: 17px; }
+.md h3 { font-size: 15.5px; }
+.md h4 { font-size: 14.5px; color: var(--text-2); }
+.md ul, .md ol { margin: 0 0 12px; padding-left: 22px; display: grid; gap: 4px; }
+.md li > ul, .md li > ol { margin: 4px 0 0; }
+.md li p { margin: 0; }
+.md strong { font-weight: 600; }
+.md a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.md hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
+.md blockquote { margin: 0 0 12px; padding: 2px 0 2px 14px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
+.md code { font-family: var(--font-mono); font-size: 0.88em; padding: 1px 5px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--border); }
+.md .md-codeblock { margin: 0 0 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.md .md-codebar { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-3); }
+.md .md-copy { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--text-2); cursor: pointer; padding: 3px 6px; border-radius: 4px; font: inherit; }
+.md .md-copy:hover { background: var(--surface); color: var(--text); }
+.md .md-codeblock pre { margin: 0; padding: 12px 14px; overflow-x: auto; line-height: 1.6; }
+.md .md-codeblock code { padding: 0; border: 0; background: none; font-size: 13px; }
+.md .md-table { overflow-x: auto; margin: 0 0 12px; border: 1px solid var(--border); border-radius: 6px; }
+.md table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.md th, .md td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+.md th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+.md tr:last-child td { border-bottom: 0; }
+.md .katex-display { margin: 12px 0; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+.md .katex { font-size: 1.06em; }
 .kv .kv-reason { grid-column: 1 / -1; text-align: left; font-family: var(--font-sans, inherit); color: var(--text-2); line-height: 1.5; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; }
 .kv dt { color: var(--text-2); }
@@ -341,7 +364,7 @@ td.sub-row { white-space: normal; background: var(--surface-2); color: var(--tex
 .kv-left { grid-template-columns: 180px 1fr; }
 .card-intro { display: flex; flex-direction: column; gap: 4px; }
 .card-intro .section-title, .card-intro p { margin: 0; }
-.settings-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.settings-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
 .settings-col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 @media (max-width: 900px) { .settings-cols { grid-template-columns: 1fr; } }
 
@@ -352,3 +375,67 @@ td.sub-row { white-space: normal; background: var(--surface-2); color: var(--tex
 .pw-rules li.ok { color: var(--text-2); }
 .pw-rules li.ok::before { background: var(--good); border-color: var(--good); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Equal-height columns: the last card in the shorter column grows so both end together */
+.settings-col > .panel:last-child { flex: 1; }
+.settings-col > .panel { margin: 0; }
+/* Password rules read better in two columns inside wide cards */
+.settings-cols .pw-rules { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin-top: 4px; }
+@media (max-width: 1100px) { .settings-cols .pw-rules { grid-template-columns: 1fr; } }
+
+/* Workspace settings */
+.settings-narrow { display: flex; flex-direction: column; gap: 24px; max-width: 720px; }
+.choice-list { display: grid; gap: 8px; }
+.choice { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.choice:hover { border-color: var(--border-strong); }
+.choice.selected { border-color: var(--text); background: var(--surface-2); }
+.choice input { margin-top: 3px; }
+.choice > span { display: flex; flex-direction: column; gap: 2px; }
+
+/* Get started checklist */
+.get-started .steps { list-style: none; margin: 0; padding: 0; }
+.get-started li { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-top: 1px solid var(--border); }
+.get-started .step-mark { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-2); }
+.get-started li.done .step-mark { background: var(--good); border-color: var(--good); color: #fff; }
+.get-started .step-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.get-started li.done .step-text { opacity: 0.6; }
+.get-started .btn { text-decoration: none; }
+
+/* Sessions and danger zone */
+.btn.danger { background: var(--bad, #c0392b); border-color: var(--bad, #c0392b); color: #fff; }
+.btn.danger:hover { opacity: 0.9; background: var(--bad, #c0392b); }
+.danger-zone { border-color: color-mix(in srgb, var(--bad, #c0392b) 45%, var(--border)); }
+
+/* Show/hide toggle for secret inputs */
+.pw-field { position: relative; display: flex; }
+.pw-field .input { padding-right: 34px; }
+.pw-toggle {
+  position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 24px; border: 0; border-radius: 4px; background: transparent;
+  color: var(--text-3); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.pw-toggle:hover { color: var(--text); background: var(--surface-2); }
+.pw-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Playground: one shared grid so each row's cards end together
+   (Prompt | Options on top, Response | Routing below). */
+.play-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: stretch; }
+.play-grid > .panel { margin: 0; min-width: 0; }
+.p-prompt { grid-column: 1; grid-row: 1; }
+.p-options { grid-column: 2; grid-row: 1; }
+.p-response { grid-column: 1; grid-row: 2; }
+.p-routing { grid-column: 2; grid-row: 2; }
+.p-prompt .field { flex: 1; }
+.p-prompt .textarea { flex: 1; min-height: 120px; }
+.play-response { min-height: 280px; display: flex; flex-direction: column; }
+.play-response > .panel-body { flex: 1; max-height: 560px; overflow-y: auto; }
+@media (max-width: 900px) {
+  .play-grid { grid-template-columns: 1fr; }
+  .p-prompt, .p-options, .p-response, .p-routing { grid-column: 1; grid-row: auto; }
+}
+
+/* Viewing saved keys */
+.row-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.reveal { padding: 4px 0; }
+.reveal-row td { background: var(--surface-2); padding: 14px 20px; }
+.panel-body > .reveal { border-top: 1px solid var(--border); padding-top: 16px; }

@@ -100,7 +100,9 @@ def _issue(
     secure = _secure(request)
     if settings.session_cookie_samesite == "none" and not secure:
         raise GatewayError(500, "internal_error", "SameSite=None sessions require HTTPS")
-    token, csrf = state.sessions.create("tenant", tenant_id, user_id)
+    token, csrf = state.sessions.create(
+        "tenant", tenant_id, user_id, request_ip(request), request.headers.get("user-agent", "")
+    )
     response = JSONResponse({**payload, "csrf_token": csrf}, status_code=status)
     response.set_cookie(
         SESSION_COOKIE, token, max_age=int(state.sessions.max_age_s), httponly=True,
@@ -150,6 +152,10 @@ async def signup(request: Request, body: Signup) -> JSONResponse:
             409, "conflict", "could not create an account with those details"
         ) from exc
     key, raw = await repo.create_api_key(tenant.id, "Default")
+    if st.vault is not None:
+        await repo.store_api_key_secret(
+            tenant.id, key.id, st.vault.encrypt(tenant.id, f"api_key:{key.id}", raw)
+        )
     await repo.audit(tenant.id, email, "workspace.created", ip=request_ip(request))
     await repo.audit(
         tenant.id, email, "api_key.created", f"{key.name} (…{key.last4})", request_ip(request)
@@ -349,6 +355,37 @@ async def change_password(request: Request, body: ChangePassword, ws: Workspace)
     await repo.audit(ws.tenant.id, ws.user.email, "password.changed", ip=request_ip(request))
     request.app.state.sessions.revoke_user(ws.user.id)  # signs out every device, this one included
     response = JSONResponse({"status": "password_changed"})
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return response
+
+
+class DeleteWorkspace(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    password: str = Field(max_length=pw.MAX_LENGTH)
+    confirm_name: str = Field(max_length=120)
+
+
+@router.delete("/workspace")
+async def delete_workspace(request: Request, body: DeleteWorkspace, ws: Workspace) -> JSONResponse:
+    """Permanently delete the workspace and everything in it. Needs the password and the
+    workspace name typed back, so a hijacked tab cannot do it in one click."""
+    repo = _repo(request)
+    limiter, ip = throttle(request)
+    auth = await repo.user_auth(ws.user.email)
+    if auth is None or not pw.verify_password(body.password, auth.password_hash):
+        limiter.hit(ip)
+        raise GatewayError(403, "forbidden", "password is incorrect")
+    if body.confirm_name.strip() != ws.tenant.name:
+        raise GatewayError(
+            422, "invalid_request_error", "type the workspace name exactly to confirm"
+        )
+    state = request.app.state
+    await repo.delete_workspace(ws.tenant.id)  # users, keys, provider keys, audit, settings, logs
+    state.sessions.revoke_user(ws.user.id)
+    if state.tenant_scopes is not None:
+        state.tenant_scopes.invalidate(ws.tenant.id)
+    state.gateway.budget.set_limits(ws.tenant.id, None, None)
+    response = JSONResponse({"status": "deleted"})
     response.delete_cookie(SESSION_COOKIE, path="/")
     return response
 

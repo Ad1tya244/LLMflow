@@ -25,6 +25,10 @@ class Session:
     role: str = "tenant"
     tenant_id: str | None = None
     user_id: str | None = None
+    ip: str = ""
+    user_agent: str = ""
+    created_at: float = 0.0  # wall clock, for display (the monotonic clock is for expiry)
+    last_seen_at: float = 0.0
 
 
 def _hash(token: str) -> str:
@@ -57,7 +61,12 @@ class SessionStore:
             del self._sessions[k]
 
     def create(
-        self, role: str = "tenant", tenant_id: str | None = None, user_id: str | None = None
+        self,
+        role: str = "tenant",
+        tenant_id: str | None = None,
+        user_id: str | None = None,
+        ip: str = "",
+        user_agent: str = "",
     ) -> tuple[str, str]:
         """Return ``(cookie_token, csrf_token)``. The raw cookie token is never stored."""
         now = self._clock()
@@ -67,7 +76,10 @@ class SessionStore:
             del self._sessions[oldest]
         token = secrets.token_urlsafe(32)
         csrf = secrets.token_urlsafe(24)
-        self._sessions[_hash(token)] = Session(csrf, now, now, role, tenant_id, user_id)
+        wall = time.time()
+        self._sessions[_hash(token)] = Session(
+            csrf, now, now, role, tenant_id, user_id, ip[:45], user_agent[:200], wall, wall
+        )
         return token, csrf
 
     def get(self, token: str | None) -> Session | None:
@@ -82,11 +94,37 @@ class SessionStore:
             del self._sessions[key]
             return None
         s.last_seen = now
+        s.last_seen_at = time.time()
         return s
 
     def revoke(self, token: str | None) -> None:
         if token:
             self._sessions.pop(_hash(token), None)
+
+    @staticmethod
+    def session_id(token: str | None) -> str | None:
+        """Public, non-secret handle for a session (a truncated hash of its cookie token)."""
+        return _hash(token)[:16] if token else None
+
+    def list_for_user(self, user_id: str) -> list[tuple[str, Session]]:
+        now = self._clock()
+        self._sweep(now)
+        rows = [(k[:16], s) for k, s in self._sessions.items() if s.user_id == user_id]
+        return sorted(rows, key=lambda r: r[1].created_at, reverse=True)
+
+    def revoke_by_id(self, user_id: str, session_id: str) -> bool:
+        for k, s in list(self._sessions.items()):
+            if s.user_id == user_id and k[:16] == session_id:
+                del self._sessions[k]
+                return True
+        return False
+
+    def revoke_others(self, user_id: str, keep_token: str | None) -> int:
+        keep = _hash(keep_token) if keep_token else None
+        doomed = [k for k, s in self._sessions.items() if s.user_id == user_id and k != keep]
+        for k in doomed:
+            del self._sessions[k]
+        return len(doomed)
 
     def revoke_user(self, user_id: str) -> int:
         """End every session of a user (password change, recovery). Returns how many."""

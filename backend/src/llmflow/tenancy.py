@@ -10,13 +10,29 @@ from collections.abc import Callable
 from llmflow.catalog import Catalog, ProviderSpec
 from llmflow.providers.base import Provider
 from llmflow.providers.quota import QuotaTracker
+from llmflow.schemas import ChatRequest
 from llmflow.security.vault import KeyVault, VaultError
 from llmflow.service import Scope
-from llmflow.storage.tenants import TenantRepo
+from llmflow.storage.tenants import TenantRepo, WorkspaceSettings
 
 log = logging.getLogger(__name__)
 
 ProviderFactory = Callable[[ProviderSpec, str], Provider]
+
+
+def apply_workspace_settings(body: ChatRequest, settings: WorkspaceSettings) -> ChatRequest:
+    """Fill in workspace defaults for options the request did not set itself.
+
+    An explicit per-request ``llmflow`` option always wins over the workspace default."""
+    explicit = body.llmflow.model_fields_set
+    update: dict[str, str] = {}
+    if "quality" not in explicit:
+        update["quality"] = settings.default_quality
+    if "cache" not in explicit and settings.cache_mode != "auto":
+        update["cache"] = "on" if settings.cache_mode == "always" else "off"
+    if not update:
+        return body
+    return body.model_copy(update={"llmflow": body.llmflow.model_copy(update=update)})
 
 
 class TenantScopes:

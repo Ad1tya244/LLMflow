@@ -24,15 +24,15 @@ export function passwordRules(password: string, email = ""): Rule[] {
   const local = email.split("@")[0]?.toLowerCase() ?? "";
   return [
     { label: "At least 12 characters", ok: password.length >= 12 },
-    { label: "An uppercase and a lowercase letter", ok: /[A-Z]/.test(password) && /[a-z]/.test(password) },
+    { label: "Upper and lower case letters", ok: /[A-Z]/.test(password) && /[a-z]/.test(password) },
     { label: "A number", ok: /\d/.test(password) },
-    { label: "A symbol or space (! @ # $ %…)", ok: /[^A-Za-z0-9]/.test(password) },
+    { label: "A symbol or space (! @ # $)", ok: /[^A-Za-z0-9]/.test(password) },
     {
-      label: "No repeated or sequential characters (aaaa, 1234, qwer)",
+      label: "No repeats or sequences (aaaa, 1234)",
       ok: password.length > 0 && !/(.)\1{3}/i.test(password) && !hasSequence(lower),
     },
     {
-      label: "No common words or your email name",
+      label: "No common words or email name",
       ok: password.length > 0 && !WEAK.some((w) => lower.includes(w)) && !(local.length >= 4 && lower.includes(local)),
     },
   ];

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Gate } from "../components/Gate";
+import { GetStarted } from "../components/GetStarted";
 import { LineChart } from "../components/LineChart";
 import { StackedBars, type BarSeries } from "../components/StackedBars";
 import {
@@ -41,6 +42,8 @@ function Body() {
       <PageHeader title="Overview" description="Traffic, latency and shadow cost across all routed requests.">
         <Segmented label="Time range" value={range} options={RANGES} onChange={setRange} />
       </PageHeader>
+
+      <GetStarted />
 
       {error && <ErrorBanner message={error.message} onRetry={reload} />}
 

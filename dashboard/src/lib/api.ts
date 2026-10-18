@@ -6,6 +6,8 @@ import type {
   PublicInfo,
   RangeKey,
   RequestPage,
+  SessionRow,
+  WorkspaceSettings,
 } from "./types";
 
 /** ``csrf`` is held in memory only; the session itself is an HttpOnly cookie. */
@@ -200,8 +202,31 @@ export const api = {
       c,
       `/account/requests?limit=${limit}&offset=${offset}${status ? `&status=${status}` : ""}`,
     ),
+  settings: (c: Connection) => request<WorkspaceSettings>(c, "/account/settings"),
+  saveSettings: (c: Connection, s: Omit<WorkspaceSettings, "platform_caps">) =>
+    request<WorkspaceSettings>(c, "/account/settings", { method: "PUT", body: JSON.stringify(s) }),
+  sessions: (c: Connection) => request<{ sessions: SessionRow[] }>(c, "/account/sessions"),
+  revokeSession: (c: Connection, id: string) =>
+    request<{ status: string }>(c, `/account/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  revokeOtherSessions: (c: Connection) =>
+    request<{ revoked: number }>(c, "/account/sessions/revoke-others", { method: "POST" }),
+  deleteWorkspace: (c: Connection, password: string, confirmName: string) =>
+    request<{ status: string }>(c, "/auth/workspace", {
+      method: "DELETE",
+      body: JSON.stringify({ password, confirm_name: confirmName }),
+    }),
   audit: (c: Connection) => request<{ events: AuditEvent[] }>(c, "/account/audit"),
   apiKeys: (c: Connection) => request<{ keys: ApiKeyInfo[] }>(c, "/account/api-keys"),
+  revealApiKey: (c: Connection, id: string, password: string, code?: string) =>
+    request<{ api_key: string }>(c, `/account/api-keys/${encodeURIComponent(id)}/reveal`, {
+      method: "POST",
+      body: JSON.stringify({ password, ...(code ? { code } : {}) }),
+    }),
+  revealProviderKey: (c: Connection, provider: string, password: string, code?: string) =>
+    request<{ api_key: string }>(c, `/account/provider-keys/${encodeURIComponent(provider)}/reveal`, {
+      method: "POST",
+      body: JSON.stringify({ password, ...(code ? { code } : {}) }),
+    }),
   createApiKey: (c: Connection, name: string) =>
     request<ApiKeyInfo & { api_key: string }>(c, "/account/api-keys", {
       method: "POST",

@@ -8,6 +8,7 @@ import {
   ScrollText,
   Server,
   Settings,
+  SlidersHorizontal,
   Sun,
   type LucideIcon,
 } from "lucide-react";
@@ -31,6 +32,7 @@ const SECTIONS: { label: string; items: NavItem[] }[] = [
       { id: "requests", label: "Requests", icon: ScrollText },
       { id: "providers", label: "Providers", icon: Server },
       { id: "keys", label: "API keys", icon: KeyRound },
+      { id: "workspace", label: "Workspace", icon: SlidersHorizontal },
     ],
   },
   {

@@ -1,6 +1,7 @@
-import { KeyRound } from "lucide-react";
-import { useState } from "react";
+import { Eye, KeyRound } from "lucide-react";
+import { Fragment, useState } from "react";
 import { Gate } from "../components/Gate";
+import { RevealSecret } from "../components/RevealSecret";
 import { SecretBlock } from "../components/Secrets";
 import { EmptyState, ErrorBanner, PageHeader, Skeleton, StatusBadge } from "../components/ui";
 import { api } from "../lib/api";
@@ -14,6 +15,7 @@ function Body() {
   const [name, setName] = useState("");
   const [fresh, setFresh] = useState<{ name: string; api_key: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [viewing, setViewing] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function run(fn: () => Promise<void>) {
@@ -105,7 +107,8 @@ function Body() {
                 </thead>
                 <tbody>
                   {data.keys.map((k) => (
-                    <tr key={k.id}>
+                    <Fragment key={k.id}>
+                    <tr>
                       <td>{k.name}</td>
                       <td className="mono">llmf_…{k.last4}</td>
                       <td>
@@ -118,6 +121,22 @@ function Body() {
                       <td className="muted">{dateTime(k.created_at)}</td>
                       <td className="muted">{k.last_used_at ? dateTime(k.last_used_at) : "Never"}</td>
                       <td>
+                        <div className="row-actions">
+                        {!k.revoked_at && (
+                          <button
+                            className="btn"
+                            disabled={!k.revealable || viewing === k.id}
+                            title={
+                              k.revealable
+                                ? "Show the full key"
+                                : "Created before key viewing existed. Create a new key to be able to view it later."
+                            }
+                            onClick={() => setViewing(k.id)}
+                          >
+                            <Eye size={14} aria-hidden />
+                            View
+                          </button>
+                        )}
                         {!k.revoked_at && (
                           <button
                             className="btn"
@@ -131,8 +150,23 @@ function Body() {
                             Revoke
                           </button>
                         )}
+                        </div>
                       </td>
                     </tr>
+                    {viewing === k.id && (
+                      <tr className="reveal-row">
+                        <td colSpan={6}>
+                          <RevealSecret
+                            title={`${k.name} (llmf_…${k.last4})`}
+                            reveal={async (password, code) =>
+                              (await api.revealApiKey(conn, k.id, password, code)).api_key
+                            }
+                            onClose={() => setViewing(null)}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

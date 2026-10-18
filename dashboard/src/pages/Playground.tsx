@@ -1,12 +1,14 @@
 import { Check, Copy, Send } from "lucide-react";
-import { Markdown } from "../components/Markdown";
-import { useRef, useState } from "react";
+import { Suspense, lazy, useRef, useState } from "react";
 import { Gate } from "../components/Gate";
 import { EmptyState, ErrorBanner, PageHeader, Segmented } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { sendChat, type RouteInfo } from "../lib/chat";
 import { useConnection } from "../lib/store";
 import { useAsync } from "../lib/useAsync";
+
+// Markdown (with tables and math) is only needed here, so it loads on demand.
+const Markdown = lazy(() => import("../components/Markdown").then((m) => ({ default: m.Markdown })));
 
 function Body() {
   const { conn } = useConnection();
@@ -66,9 +68,8 @@ function Body() {
         title="Playground"
         description="Send a request through the gateway and see how it was routed."
       />
-      <div className="split">
-        <section className="panel">
-          <div className="panel-body stack">
+      <div className="play-grid">
+          <section className="panel panel-body stack p-prompt">
             <div className="field">
               <label htmlFor="prompt">Prompt</label>
               <textarea
@@ -81,39 +82,43 @@ function Body() {
                   if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && prompt.trim() && !busy) void run();
                 }}
               />
-              <span className="hint">Cmd/Ctrl + Enter to send</span>
             </div>
-            <div>
+            <div className="form-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+              <span className="hint">Cmd/Ctrl + Enter to send</span>
               <button className="btn primary" disabled={!prompt.trim() || busy} onClick={() => void run()}>
                 <Send size={14} aria-hidden />
                 {busy ? "Sending…" : "Send"}
               </button>
             </div>
-          </div>
-          <div className="panel-head" style={{ borderTop: "1px solid var(--border)" }}>
-            <h2 className="section-title">Response</h2>
-            {text && !busy && (
-              <button className="btn ghost" onClick={() => void copy()} aria-label="Copy response">
-                {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-                {copied ? "Copied" : "Copy"}
-              </button>
-            )}
-          </div>
-          <div className="panel-body" aria-live="polite">
-            {error && <ErrorBanner message={error.message} />}
-            {!error && !text && !busy && (
-              <EmptyState title="No response yet">The reply and routing details will appear here.</EmptyState>
-            )}
-            {text && (
-              <div className="response">
-                {busy ? <div className="response-plain">{text}</div> : <Markdown source={text} />}
-              </div>
-            )}
-          </div>
-        </section>
+          </section>
 
-        <aside className="stack">
-          <section className="panel panel-body stack">
+          <section className="panel play-response p-response">
+            <div className="panel-head">
+              <h2 className="section-title">Response</h2>
+              {text && !busy && (
+                <button className="btn ghost" onClick={() => void copy()} aria-label="Copy response">
+                  {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              )}
+            </div>
+            <div className="panel-body" aria-live="polite">
+              {error && <ErrorBanner message={error.message} />}
+              {!error && !text && !busy && (
+                <EmptyState title="No response yet">The reply and routing details will appear here.</EmptyState>
+              )}
+              {!error && !text && busy && <span className="muted">Waiting for the model…</span>}
+              {text && (
+                <div className="response">
+                  <Suspense fallback={<div className="response-plain">{text}</div>}>
+                    <Markdown source={text} />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="panel panel-body stack p-options">
             <div className="field">
               <label htmlFor="model">Model</label>
               <select id="model" className="select" value={model} onChange={(e) => setModel(e.target.value)}>
@@ -156,7 +161,7 @@ function Body() {
             </label>
           </section>
 
-          <section className="panel">
+          <section className="panel p-routing">
             <div className="panel-head">
               <h2 className="section-title">Routing</h2>
             </div>
@@ -189,7 +194,6 @@ function Body() {
               )}
             </div>
           </section>
-        </aside>
       </div>
     </>
   );

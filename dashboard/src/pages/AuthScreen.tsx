@@ -1,3 +1,4 @@
+import { PasswordInput } from "../components/PasswordInput";
 import { PasswordRules } from "../components/ui";
 import { passwordAcceptable } from "../lib/passwordRules";
 import { useState } from "react";
@@ -46,15 +47,24 @@ function Field({
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        className="input"
-        type={type}
-        value={value}
-        autoComplete={autoComplete}
-        spellCheck={false}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      {type === "password" ? (
+        <PasswordInput
+          id={id}
+          value={value}
+          autoComplete={autoComplete}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      ) : (
+        <input
+          id={id}
+          className="input"
+          type={type}
+          value={value}
+          autoComplete={autoComplete}
+          spellCheck={false}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
       {hint && <span className="hint">{hint}</span>}
     </div>
   );
