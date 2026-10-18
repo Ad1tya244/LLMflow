@@ -3,7 +3,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/gw/:path*", "destination": "https://REPLACE-WITH-YOUR-RENDER-URL.onrender.com/:path*" }
+    { "source": "/gw/:path*", "destination": "https://llmflow-api.onrender.com/:path*" }
   ],
   "headers": [
     {
