@@ -4,6 +4,7 @@ services:
     name: llmflow-api
     runtime: python
     plan: free
+    region: singapore                  # keep next to the Neon database (AWS ap-southeast-1)
     rootDir: backend
     buildCommand: pip install -r requirements.lock
     startCommand: PYTHONPATH=src uvicorn --factory llmflow.api.app:create_app --host 0.0.0.0 --port $PORT --no-server-header
