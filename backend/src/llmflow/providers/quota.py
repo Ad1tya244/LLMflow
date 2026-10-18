@@ -59,6 +59,16 @@ class QuotaTracker:
             return False
         return not (lim.tpd is not None and sum(n for _, n in events) + est_tokens > lim.tpd)
 
+    def why_blocked(self, spec: ModelSpec, est_tokens: int = 0) -> str:
+        """Human-readable reason ``allows`` is false (for routing notes and error messages)."""
+        now = self._clock()
+        if spec.provider in self._disabled_providers:
+            return "its provider rejected the API key (check it on the Providers page)"
+        until = self._cooldown_until.get(spec.id, 0.0)
+        if until > now:
+            return f"cooling down after an earlier error ({int(until - now) + 1}s left)"
+        return "over its configured rate limits"
+
     def headroom(self, spec: ModelSpec) -> float:
         """Fraction of the tightest configured limit still available, in [0, 1]."""
         now = self._clock()

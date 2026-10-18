@@ -96,6 +96,7 @@ async def account(request: Request, ws: Workspace) -> dict[str, Any]:
     _limit(request, ws.tenant.id)
     gw = request.app.state.gateway
     keys = await repo.provider_keys(ws.tenant.id)
+    paused = await repo.paused_providers(ws.tenant.id)
     quota = scopes.quota_for(ws.tenant.id)  # no decryption needed to describe the workspace
     spend = gw.budget.spend(ws.tenant.id)
     workspace = await repo.get_settings(ws.tenant.id)
@@ -119,6 +120,7 @@ async def account(request: Request, ws: Workspace) -> dict[str, Any]:
                 "configured": p.id in keys,
                 "last4": keys[p.id][1] if p.id in keys else None,
                 "trains_on_data": p.trains_on_data,
+                "paused": bool(p.id in keys and p.id in paused),
                 "auth_failed": bool(p.id in keys and quota.snapshot_provider_disabled(p.id)),
             }
             for p in gw.catalog.providers.values()
@@ -129,7 +131,7 @@ async def account(request: Request, ws: Workspace) -> dict[str, Any]:
                 "provider": m.provider,
                 "upstream_model": m.upstream_model,
                 "tier": m.tier.name.lower(),
-                "enabled": m.provider in keys,
+                "enabled": m.provider in keys and m.provider not in paused,
             }
             for m in gw.catalog.models.values()
             if m.enabled
@@ -373,10 +375,36 @@ async def put_provider_key(
     return {"provider": provider, "last4": key[-4:], "verified": verified}
 
 
-@router.delete("/account/provider-keys/{provider}")
-async def delete_provider_key(request: Request, provider: str, ws: Workspace) -> dict[str, str]:
+class PauseBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    paused: bool
+
+
+@router.put("/account/provider-keys/{provider}/pause")
+async def pause_provider_key(
+    request: Request, provider: str, body: PauseBody, ws: Workspace
+) -> dict[str, Any]:
+    """Pause or resume a provider: the key stays saved but is not used for routing while paused.
+    Reversible and non-destructive, so no password is needed."""
     repo, _vault, scopes = _state(request)
     _limit(request, ws.tenant.id)
+    if provider not in await repo.provider_keys(ws.tenant.id):
+        raise GatewayError(404, "not_found", "no key stored for that provider")
+    await repo.set_provider_paused(ws.tenant.id, provider, body.paused)
+    scopes.invalidate(ws.tenant.id)
+    action = "provider_key.paused" if body.paused else "provider_key.resumed"
+    await repo.audit(ws.tenant.id, ws.user.email, action, provider, request_ip(request))
+    return {"provider": provider, "paused": body.paused}
+
+
+@router.delete("/account/provider-keys/{provider}")
+async def delete_provider_key(
+    request: Request, provider: str, body: RevealBody, ws: Workspace
+) -> dict[str, str]:
+    """Remove a saved key. Destructive, so it needs the password (and 2FA code if enabled)."""
+    repo, _vault, scopes = _state(request)
+    _limit(request, ws.tenant.id)
+    await confirm_identity(request, repo, ws, body.password, body.code)
     if not await repo.delete_provider_key(ws.tenant.id, provider):
         raise GatewayError(404, "not_found", "no key stored for that provider")
     scopes.invalidate(ws.tenant.id)
@@ -412,7 +440,12 @@ async def account_overview(
     rows = await usage.since(now - window_s, key_id=ws.tenant.id)
     catalog = request.app.state.gateway.catalog
     keys = await repo.provider_keys(ws.tenant.id)
-    enabled = [m for m in catalog.models.values() if m.enabled and m.provider in keys]
+    paused = await repo.paused_providers(ws.tenant.id)
+    enabled = [
+        m
+        for m in catalog.models.values()
+        if m.enabled and m.provider in keys and m.provider not in paused
+    ]
     return build_overview(rows, catalog, enabled, now=now, window_s=window_s, bucket_s=bucket_s)
 
 

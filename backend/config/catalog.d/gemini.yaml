@@ -1,8 +1,13 @@
 # Google Gemini through its OpenAI-compatible endpoint, so workspaces can bring a Gemini key.
-# NOT VERIFIED LIVE: the developer has not tested a Gemini key against this gateway yet. Model ids
-# and prices come from Google's public docs (ai.google.dev/gemini-api/docs/pricing, checked
-# 2026-10-18) and Google changes them often; a retired or renamed id returns 404, the model goes
-# into cooldown and routing falls back to another provider. Quality values are placeholders.
+# Ids and prices come from Google's docs (pricing, models and deprecations pages, checked
+# 2026-10-18). Tested directly against Google's OpenAI-compatible chat endpoint with a real key on
+# 2026-10-18: gemini-3.1-flash-lite, gemini-3.5-flash-lite and gemini-3.8-flash returned 200, while
+# gemini-2.5-flash-lite returned 404 even though /models lists it (the 2.5 family is "legacy" and is
+# refused for new accounts), so it is deliberately NOT listed here. Streaming and routing through
+# LLMFlow itself have not been tested yet. A retired id returns 404 and the model
+# goes into cooldown. Re-check https://ai.google.dev/gemini-api/docs/deprecations periodically;
+# gemini-3.1-flash-lite is scheduled for shutdown no earlier than 2027-05-07 (replacement:
+# gemini-3.5-flash-lite). Quality values are placeholders, not measurements.
 #
 # - trains_on_data: Google may use free-tier prompts to improve its products, so "strict privacy"
 #   requests skip Gemini. A paid key is not used that way, but the flag stays conservative.
@@ -17,14 +22,14 @@ providers:
     trains_on_data: true
     stream_usage: false
 models:
-  - id: gemini-2.5-flash-lite
+  - id: gemini-3.1-flash-lite
     provider: gemini
-    upstream_model: gemini-2.5-flash-lite
+    upstream_model: gemini-3.1-flash-lite
     tier: small
     quality: 0.55
     context_window: 1000000
-    price_in: 0.10
-    price_out: 0.40
+    price_in: 0.25
+    price_out: 1.50
   - id: gemini-3.5-flash-lite
     provider: gemini
     upstream_model: gemini-3.5-flash-lite

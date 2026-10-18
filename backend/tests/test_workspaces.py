@@ -455,11 +455,18 @@ def test_bad_provider_keys_are_rejected(env: Env, people: list[Person]) -> None:
     assert next(x for x in stored if x["id"] == "p1")["configured"] is False
 
 
+def _remove(p: Person, provider: str, password: str = PASSWORD, code: str | None = None) -> Any:
+    body: dict[str, Any] = {"password": password}
+    if code is not None:
+        body["code"] = code
+    return p.client.request("DELETE", f"/account/provider-keys/{provider}", headers=p.h, json=body)
+
+
 def test_deleting_a_provider_key_stops_routing(env: Env, people: list[Person]) -> None:
     p = person(env, people)
     save_key(p, "p1", "tenant-key-AAAAAAAA1111")
     assert env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY).status_code == 200
-    assert p.client.delete("/account/provider-keys/p1", headers=p.h).status_code == 200
+    assert _remove(p, "p1").status_code == 200
     again = env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY)
     assert again.json()["error"]["type"] == "no_provider_keys"
 
@@ -1087,3 +1094,127 @@ def test_deleting_a_workspace_erases_stored_api_key_secrets(env: Env, people: li
             "SELECT COUNT(*) FROM api_key_secret WHERE tenant_id = ?", (p.tenant_id,)
         ).fetchone()[0]
     assert after == 0
+
+
+# --- removing a provider key needs the password; pausing is reversible and does not -----------
+
+
+def test_removing_a_provider_key_requires_password_and_second_factor(
+    env: Env, people: list[Person]
+) -> None:
+    p = person(env, people)
+    assert save_key(p, "p1", "tenant-key-AAAAAAAA1111").status_code == 200
+    no_body = p.client.delete("/account/provider-keys/p1", headers=p.h)
+    assert no_body.status_code == 422  # a bare click can never remove it
+    assert _remove(p, "p1", "wrong password").status_code == 403
+    still = next(
+        x for x in p.client.get("/account", headers=p.h).json()["providers"] if x["id"] == "p1"
+    )
+    assert still["configured"] is True  # nothing was removed
+    assert (
+        env.c.request(
+            "DELETE", "/account/provider-keys/p1", headers=p.bearer, json={"password": PASSWORD}
+        ).status_code
+        == 403
+    )  # API keys cannot either
+
+    secret = _enable_mfa(p)
+    assert _remove(p, "p1").status_code == 403  # password alone is not enough with 2FA on
+    code = totp.code_at(secret, totp.current_step() + 1)
+    assert _remove(p, "p1", code=code).status_code == 200
+    audit = p.client.get("/account/audit", headers=p.h).json()["events"]
+    assert any(e["action"] == "provider_key.removed" for e in audit)
+
+
+def test_pausing_a_provider_stops_routing_without_removing_the_key(
+    env: Env, people: list[Person]
+) -> None:
+    p = person(env, people)
+    assert save_key(p, "p1", "tenant-key-AAAAAAAA1111").status_code == 200
+    url = "/account/provider-keys/p1/pause"
+    ok = env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY)
+    assert ok.status_code == 200
+
+    paused = p.client.put(url, headers=p.h, json={"paused": True})  # no password needed
+    assert paused.status_code == 200 and paused.json() == {"provider": "p1", "paused": True}
+    info = p.client.get("/account", headers=p.h).json()
+    row = next(x for x in info["providers"] if x["id"] == "p1")
+    assert row["configured"] is True and row["last4"] == "1111" and row["paused"] is True
+    assert not any(m["enabled"] for m in info["models"] if m["provider"] == "p1")
+    blocked = env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY)
+    assert blocked.json()["error"]["type"] == "no_provider_keys"
+    assert [m["id"] for m in env.c.get("/v1/models", headers=p.bearer).json()["data"]] == ["auto"]
+    named = env.c.post("/v1/chat/completions", headers=p.bearer, json={**BODY, "model": "small"})
+    assert named.status_code in (404, 503)  # a paused provider cannot be reached by name either
+
+    resumed = p.client.put(url, headers=p.h, json={"paused": False})
+    assert resumed.status_code == 200
+    assert (
+        next(
+            x for x in p.client.get("/account", headers=p.h).json()["providers"] if x["id"] == "p1"
+        )["paused"]
+        is False
+    )
+    assert env.c.post("/v1/chat/completions", headers=p.bearer, json=BODY).status_code == 200
+
+    audit = p.client.get("/account/audit", headers=p.h).json()["events"]
+    actions = [e["action"] for e in audit]
+    assert "provider_key.paused" in actions and "provider_key.resumed" in actions
+
+
+def test_pause_is_per_workspace_and_needs_a_saved_key_and_a_session(
+    env: Env, people: list[Person]
+) -> None:
+    a = person(env, people, "a@example.com", "A")
+    b = person(env, people, "b@example.com", "B")
+    assert save_key(a, "p1", "tenant-key-AAAAAAAA1111").status_code == 200
+    assert save_key(b, "p1", "tenant-key-BBBBBBBB2222").status_code == 200
+    assert (
+        a.client.put(
+            "/account/provider-keys/p2/pause", headers=a.h, json={"paused": True}
+        ).status_code
+        == 404
+    )
+    assert (
+        env.c.put(
+            "/account/provider-keys/p1/pause", headers=a.bearer, json={"paused": True}
+        ).status_code
+        == 403
+    )
+    assert (
+        a.client.put(
+            "/account/provider-keys/p1/pause", headers=a.h, json={"paused": True}
+        ).status_code
+        == 200
+    )
+    assert env.c.post("/v1/chat/completions", headers=a.bearer, json=BODY).status_code == 503
+    assert (
+        env.c.post("/v1/chat/completions", headers=b.bearer, json=BODY).status_code == 200
+    )  # unaffected
+
+
+def test_removing_a_key_clears_its_pause_and_deleting_the_workspace_erases_it(
+    env: Env, people: list[Person]
+) -> None:
+    p = person(env, people)
+    assert save_key(p, "p1", "tenant-key-AAAAAAAA1111").status_code == 200
+    p.client.put("/account/provider-keys/p1/pause", headers=p.h, json={"paused": True})
+    assert _remove(p, "p1").status_code == 200
+    assert save_key(p, "p1", "tenant-key-CCCCCCCC3333").status_code == 200  # a fresh key is active
+    row = next(
+        x for x in p.client.get("/account", headers=p.h).json()["providers"] if x["id"] == "p1"
+    )
+    assert row["paused"] is False
+    p.client.put("/account/provider-keys/p1/pause", headers=p.h, json={"paused": True})
+    gone = p.client.request(
+        "DELETE",
+        "/auth/workspace",
+        headers=p.h,
+        json={"password": PASSWORD, "confirm_name": "Acme"},
+    )
+    assert gone.status_code == 200
+    with sqlite3.connect(env.db) as conn:
+        left = conn.execute(
+            "SELECT COUNT(*) FROM provider_pause WHERE tenant_id = ?", (p.tenant_id,)
+        ).fetchone()[0]
+    assert left == 0

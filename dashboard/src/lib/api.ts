@@ -240,10 +240,17 @@ export const api = {
       `/account/provider-keys/${encodeURIComponent(provider)}`,
       { method: "PUT", body: JSON.stringify({ api_key: apiKey }) },
     ),
-  deleteProviderKey: (c: Connection, provider: string) =>
+  deleteProviderKey: (c: Connection, provider: string, password: string, code?: string) =>
     request<{ status: string }>(c, `/account/provider-keys/${encodeURIComponent(provider)}`, {
       method: "DELETE",
+      body: JSON.stringify({ password, ...(code ? { code } : {}) }),
     }),
+  pauseProviderKey: (c: Connection, provider: string, paused: boolean) =>
+    request<{ provider: string; paused: boolean }>(
+      c,
+      `/account/provider-keys/${encodeURIComponent(provider)}/pause`,
+      { method: "PUT", body: JSON.stringify({ paused }) },
+    ),
   changePassword: (c: Connection, currentPassword: string, newPassword: string) =>
     request<{ status: string }>(c, "/auth/change-password", {
       method: "POST",

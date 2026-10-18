@@ -88,12 +88,13 @@ class TenantScopes:
             self._scopes.move_to_end(tenant_id)
             return cached[1]
         providers: dict[str, Provider] = {}
+        paused = await self._repo.paused_providers(tenant_id)
         for provider_id, (ciphertext, _last4) in (
             await self._repo.provider_keys(tenant_id)
         ).items():
             spec = self._catalog.providers.get(provider_id)
-            if spec is None:
-                continue  # provider removed from the catalog since the key was saved
+            if spec is None or provider_id in paused:
+                continue  # removed from the catalog since saving, or paused by the workspace
             try:
                 providers[provider_id] = self._factory(
                     spec, self._vault.decrypt(tenant_id, provider_id, ciphertext)

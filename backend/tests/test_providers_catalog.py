@@ -28,7 +28,7 @@ def test_shipped_catalog_has_three_providers_and_a_pin_only_qwen() -> None:
     assert gemini.base_url.startswith("https://generativelanguage.googleapis.com/")
     assert gemini.trains_on_data is True and gemini.stream_usage is False
     assert {m.id for m in cat.models.values() if m.provider == "gemini"} == {
-        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite",
         "gemini-3.5-flash-lite",
         "gemini-3.8-flash",
     }

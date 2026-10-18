@@ -1,6 +1,7 @@
-import { Check, Eye, KeyRound, ShieldAlert } from "lucide-react";
+import { Check, Eye, KeyRound, Pause, Play, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { Gate } from "../components/Gate";
+import { ConfirmAction } from "../components/ConfirmAction";
 import { PasswordInput } from "../components/PasswordInput";
 import { RevealSecret } from "../components/RevealSecret";
 import { ErrorBanner, PageHeader, Skeleton, StatusBadge } from "../components/ui";
@@ -23,6 +24,7 @@ function ProviderRow({
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [viewing, setViewing] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function save() {
@@ -43,11 +45,13 @@ function ProviderRow({
     }
   }
 
-  async function remove() {
+  async function setPaused(paused: boolean) {
     setBusy(true);
+    setMessage(null);
     try {
-      await api.deleteProviderKey(conn, provider.id);
-      setMessage({ ok: true, text: "Key removed." });
+      await api.pauseProviderKey(conn, provider.id, paused);
+      // pausing shows its own persistent note on the card, so only resuming needs a message
+      if (!paused) setMessage({ ok: true, text: "Resumed. This provider is available for routing again." });
       onChanged();
     } catch (e) {
       setMessage({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -62,7 +66,12 @@ function ProviderRow({
         <div className="form-row" style={{ gap: 12 }}>
           <h2 className="section-title mono">{provider.id}</h2>
           {provider.configured ? (
-            provider.auth_failed ? (
+            provider.paused ? (
+              <span className="badge warn">
+                <Pause size={12} aria-hidden />
+                Paused
+              </span>
+            ) : provider.auth_failed ? (
               <StatusBadge status="disabled" />
             ) : (
               <StatusBadge status="ready" label="Key saved" detail={`ending ${provider.last4 ?? ""}`} />
@@ -79,6 +88,15 @@ function ProviderRow({
         )}
       </div>
       <div className="panel-body stack">
+        {provider.paused && (
+          <div className="banner" role="status">
+            <Pause size={16} aria-hidden />
+            <div className="grow">
+              Paused: the key is kept, but LLMFlow will not route requests to {provider.id} until you
+              resume it.
+            </div>
+          </div>
+        )}
         <div className="muted">
           Models available once a key is saved: <span className="mono">{models.join(", ") || "none"}</span>
         </div>
@@ -106,11 +124,31 @@ function ProviderRow({
             </button>
           )}
           {provider.configured && (
-            <button className="btn" disabled={busy} onClick={() => void remove()}>
+            <button className="btn" disabled={busy} onClick={() => void setPaused(!provider.paused)}>
+              {provider.paused ? <Play size={14} aria-hidden /> : <Pause size={14} aria-hidden />}
+              {provider.paused ? "Resume" : "Pause"}
+            </button>
+          )}
+          {provider.configured && (
+            <button className="btn" disabled={busy || removing} onClick={() => setRemoving(true)}>
               Remove
             </button>
           )}
         </div>
+        {removing && (
+          <ConfirmAction
+            prompt={`Confirm with your password to remove the ${provider.id} key`}
+            confirmLabel="Remove key"
+            danger
+            onConfirm={async (password, code) => {
+              await api.deleteProviderKey(conn, provider.id, password, code);
+              setRemoving(false);
+              setMessage({ ok: true, text: "Key removed." });
+              onChanged();
+            }}
+            onCancel={() => setRemoving(false)}
+          />
+        )}
         {viewing && (
           <RevealSecret
             title={`${provider.id} API key`}

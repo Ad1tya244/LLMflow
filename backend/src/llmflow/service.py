@@ -141,7 +141,9 @@ class Gateway:
             pinned = next((m for m in scope.enabled if m.id == request.model), None)
             if pinned is None:
                 raise GatewayError(
-                    404, "model_not_found", f"unknown or disabled model {request.model!r}"
+                    404,
+                    "model_not_found",
+                    f"model {request.model!r} is unknown, or its provider has no key or is paused",
                 )
             tail = tuple(m for m in plan.chain if m.id != pinned.id)
             plan = RoutePlan(
@@ -149,7 +151,12 @@ class Gateway:
             )
         if not plan.chain:
             raise GatewayError(503, "no_available_model", plan.reason)
-        if not request.llmflow.fallback:
+        # Naming a model means "this one": never swap in another model (possibly at a different
+        # provider, with different data terms) unless the caller explicitly allowed fallback.
+        pinned_without_fallback = (
+            request.model != AUTO_MODEL and "fallback" not in opts.model_fields_set
+        )
+        if not opts.fallback or pinned_without_fallback:
             plan = RoutePlan(plan.chain[:1], plan.reason, plan.required_quality, plan.degraded)
         return plan
 
@@ -201,10 +208,9 @@ class Gateway:
             log.exception("failed to record usage")
         return cost
 
-    def _exhausted(self, errors: list[str]) -> GatewayError:
-        return GatewayError(
-            503, "all_providers_failed", "all candidate models failed: " + "; ".join(errors)
-        )
+    def _exhausted(self, notes: list[str]) -> GatewayError:
+        detail = "; ".join(notes) or "no model could be tried"
+        return GatewayError(503, "all_providers_failed", f"no model could answer: {detail}")
 
     async def complete(
         self, request: ChatRequest, key_id: str, scope: Scope | None = None
@@ -239,6 +245,7 @@ class Gateway:
             if attempts >= self._max_attempts:
                 break
             if not scope.quota.allows(spec):
+                errors.append(f"{spec.id} skipped: {scope.quota.why_blocked(spec)}")
                 continue
             attempts += 1
             try:
@@ -247,7 +254,7 @@ class Gateway:
                 )
             except ProviderError as err:
                 self._on_failure(spec, err, scope)
-                errors.append(f"{spec.id}: {err.kind.value}")
+                errors.append(_failure_note(spec, err))
                 if not err.fallback_eligible:
                     await self._log(
                         request,
@@ -263,6 +270,7 @@ class Gateway:
                 continue
             usage = done.usage
             scope.quota.record(spec, usage.prompt_tokens + usage.completion_tokens)
+            reason = _with_notes(plan.reason, errors)
             cost = await self._log(
                 request,
                 key_id,
@@ -270,7 +278,7 @@ class Gateway:
                 usage=usage,
                 latency_ms=done.latency_ms,
                 attempts=attempts,
-                reason=plan.reason,
+                reason=reason,
                 ok=True,
                 cache_status=status,
             )
@@ -282,7 +290,7 @@ class Gateway:
                     spec.provider,
                     (usage.prompt_tokens, usage.completion_tokens),
                 )
-            meta = RouteMeta(spec.id, spec.provider, plan.reason, attempts, cost, status)
+            meta = RouteMeta(spec.id, spec.provider, reason, attempts, cost, status)
             return ChatResult(done.body, meta)
         await self._log(
             request,
@@ -308,6 +316,7 @@ class Gateway:
             if attempts >= self._max_attempts:
                 break
             if not scope.quota.allows(spec):
+                errors.append(f"{spec.id} skipped: {scope.quota.why_blocked(spec)}")
                 continue
             attempts += 1
             upstream = scope.providers[spec.provider].stream(
@@ -317,16 +326,19 @@ class Gateway:
                 first = await anext(upstream)
             except StopAsyncIteration:
                 await _aclose(upstream)
-                errors.append(f"{spec.id}: empty stream")
+                errors.append(f"{spec.id} failed (empty stream)")
                 scope.quota.cool_down(spec.id, _COOLDOWN_S[ProviderErrorKind.SERVER])
                 continue
             except ProviderError as err:
                 await _aclose(upstream)
                 self._on_failure(spec, err, scope)
-                errors.append(f"{spec.id}: {err.kind.value}")
+                errors.append(_failure_note(spec, err))
                 if not err.fallback_eligible:
                     raise GatewayError(400, "invalid_request_error", err.client_message) from err
                 continue
+            plan = RoutePlan(
+                plan.chain, _with_notes(plan.reason, errors), plan.required_quality, plan.degraded
+            )
             meta = RouteMeta(spec.id, spec.provider, plan.reason, attempts, None)
             return StreamResult(
                 self._relay(request, key_id, spec, plan, attempts, first, upstream, scope), meta
@@ -381,6 +393,15 @@ class Gateway:
                 reason=plan.reason,
                 ok=ok,
             )
+
+
+def _failure_note(spec: ModelSpec, err: ProviderError) -> str:
+    return f"{spec.id} failed ({err.kind.value}: {err.client_message[:120]})"
+
+
+def _with_notes(reason: str, notes: list[str]) -> str:
+    """Append what was skipped or failed before the answering model, so the route is honest."""
+    return f"{reason}; before that: {'; '.join(notes)}" if notes else reason
 
 
 async def _aclose(it: AsyncIterator[str]) -> None:

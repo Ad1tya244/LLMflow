@@ -97,6 +97,8 @@ export interface AccountProvider {
   configured: boolean;
   last4: string | null;
   trains_on_data: boolean;
+  /** Key stays saved but is not used for routing until resumed. */
+  paused?: boolean;
   auth_failed: boolean;
 }
 

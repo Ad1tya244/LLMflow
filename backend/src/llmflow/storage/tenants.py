@@ -111,6 +111,17 @@ class ApiKeySecretRow(Base):
     ciphertext: Mapped[str] = mapped_column(Text)
 
 
+class ProviderPauseRow(Base):
+    """A provider the workspace has paused: its key stays saved but is never used for routing.
+    A row exists only while paused (separate table, so older databases need no migration)."""
+
+    __tablename__ = "provider_pause"
+
+    tenant_id: Mapped[str] = mapped_column(String(24), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64), primary_key=True)
+    paused_at: Mapped[float] = mapped_column(Float)
+
+
 class RecoveryCodeRow(Base):
     __tablename__ = "recovery_code"
 
@@ -372,6 +383,7 @@ class TenantRepo:
                 ApiKeyRow,
                 ApiKeySecretRow,
                 ProviderKeyRow,
+                ProviderPauseRow,
                 AuditRow,
                 WorkspaceSettingsRow,
             ):
@@ -587,8 +599,33 @@ class TenantRepo:
                 row.ciphertext, row.last4, row.created_at = ciphertext, last4, time.time()
             await s.commit()
 
+    async def paused_providers(self, tenant_id: str) -> set[str]:
+        async with self._sessions() as s:
+            rows = (
+                await s.execute(
+                    select(ProviderPauseRow.provider).where(ProviderPauseRow.tenant_id == tenant_id)
+                )
+            ).scalars()
+            return set(rows)
+
+    async def set_provider_paused(self, tenant_id: str, provider: str, paused: bool) -> None:
+        async with self._sessions() as s:
+            existing = await s.get(ProviderPauseRow, (tenant_id, provider))
+            if paused and existing is None:
+                s.add(
+                    ProviderPauseRow(tenant_id=tenant_id, provider=provider, paused_at=time.time())
+                )
+            elif not paused and existing is not None:
+                await s.delete(existing)
+            await s.commit()
+
     async def delete_provider_key(self, tenant_id: str, provider: str) -> bool:
         async with self._sessions() as s:
+            await s.execute(
+                delete(ProviderPauseRow).where(
+                    ProviderPauseRow.tenant_id == tenant_id, ProviderPauseRow.provider == provider
+                )
+            )
             res = await s.execute(
                 delete(ProviderKeyRow).where(
                     ProviderKeyRow.tenant_id == tenant_id, ProviderKeyRow.provider == provider

@@ -154,3 +154,62 @@ def test_usage_is_recorded(make_client) -> None:  # type: ignore[no-untyped-def]
     assert result.requests == 1
     assert result.prompt_tokens == 100 and result.completion_tokens == 50
     assert result.shadow_cost_usd > 0
+
+
+# --- pinned models are never swapped silently; skips and failures are explained ----------------
+
+
+def _auth_failure() -> ProviderError:
+    return ProviderError(
+        ProviderErrorKind.AUTH, "401", status=401, client_message="API key not valid"
+    )
+
+
+def test_pinned_model_does_not_fall_back_and_says_why(make_client) -> None:  # type: ignore[no-untyped-def]
+    p2 = FakeProvider([_auth_failure()])  # "large" lives on provider p2
+    c = make_client(FakeProvider(), p2)
+    pinned = {**BODY, "model": "large"}
+
+    first = c.post("/v1/chat/completions", json=pinned, headers=AUTH)
+    assert first.status_code == 503
+    msg = first.json()["error"]["message"]
+    assert "large failed (auth: API key not valid)" in msg
+
+    # the provider is now disabled; the next call must say so instead of quietly using another
+    second = c.post("/v1/chat/completions", json=pinned, headers=AUTH)
+    assert second.status_code == 503
+    assert "large skipped: its provider rejected the API key" in second.json()["error"]["message"]
+
+
+def test_pinned_model_may_fall_back_only_when_the_caller_allows_it(make_client) -> None:  # type: ignore[no-untyped-def]
+    c = make_client(FakeProvider(), FakeProvider([_auth_failure()]))
+    allowed = {**BODY, "model": "large", "llmflow": {"fallback": True}}
+    r = c.post("/v1/chat/completions", json=allowed, headers=AUTH)
+    assert r.status_code == 200 and r.headers["x-llmflow-model"] != "large"
+    assert "pinned to large" in r.headers["x-llmflow-route-reason"]
+    assert "large failed (auth: API key not valid)" in r.headers["x-llmflow-route-reason"]
+
+    r2 = c.post("/v1/chat/completions", json=allowed, headers=AUTH)  # now skipped, still explained
+    assert r2.status_code == 200
+    assert (
+        "large skipped: its provider rejected the API key" in r2.headers["x-llmflow-route-reason"]
+    )
+
+
+def test_auto_fallback_is_reflected_in_the_route_reason(make_client) -> None:  # type: ignore[no-untyped-def]
+    boom = ProviderError(ProviderErrorKind.SERVER, "boom", status=500, client_message="overloaded")
+    c = make_client(FakeProvider([boom]))
+    r = c.post("/v1/chat/completions", json=BODY, headers=AUTH)
+    assert r.status_code == 200
+    reason = r.headers["x-llmflow-route-reason"]
+    assert "before that: small failed (server: overloaded)" in reason
+    assert r.headers["x-llmflow-attempts"] == "2"
+
+
+def test_pinned_streaming_reports_the_real_failure(make_client) -> None:  # type: ignore[no-untyped-def]
+    c = make_client(FakeProvider(), FakeProvider([_auth_failure()]))
+    r = c.post(
+        "/v1/chat/completions", json={**BODY, "model": "large", "stream": True}, headers=AUTH
+    )
+    assert r.status_code == 503
+    assert "large failed (auth: API key not valid)" in r.json()["error"]["message"]

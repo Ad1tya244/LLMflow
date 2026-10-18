@@ -25,6 +25,10 @@ const ACTION_LABEL: Record<string, string> = {
   "provider_key.saved": "Provider key saved",
   "provider_key.removed": "Provider key removed",
   "settings.changed": "Workspace settings changed",
+  "provider_key.paused": "Provider paused",
+  "provider_key.resumed": "Provider resumed",
+  "provider_key.revealed": "Provider key viewed",
+  "api_key.revealed": "API key viewed",
   "session.revoked": "Session signed out",
 };
 

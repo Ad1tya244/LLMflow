@@ -26,7 +26,8 @@ caches deterministic requests, enforces budgets, and shows you what it did and w
   that meets a quality bar; every response carries `x-llmflow-*` headers explaining the decision.
 - **Bring your own keys**: each workspace adds its own provider keys, encrypted at rest and sent
   only over TLS on hosted deployments. They are masked in the dashboard, shown again only
-  after you re-enter your password, and used only for that workspace's requests.
+  after you re-enter your password, and used only for that workspace's requests. A provider can
+  be **paused** (key kept, never routed to) and resumed; removing a key needs your password.
 - **Resilience**: per-model quota tracking, cooldowns that honour `Retry-After`, bounded fallback
   across models, streaming fallback before the first byte.
 - **Cost controls**: exact-match response cache, per-workspace rate limits, and daily token and
@@ -93,7 +94,7 @@ Per-request options go in an `llmflow` object:
 |---|---|---|
 | `quality` | `low` / `balanced` / `high` | raises or lowers the model bar (and cost) |
 | `privacy` | `standard` / `strict` | `strict` excludes providers flagged as training on prompts |
-| `fallback` | `true` / `false` | `false` = fail rather than try another model |
+| `fallback` | `true` / `false` | `false` = fail rather than try another model. A request that names a model never falls back unless you set `true` |
 | `cache` | `auto` / `on` / `off` | `auto` caches only non-streaming `temperature: 0` requests |
 
 Repeated identical requests that are cacheable return instantly at no cost (`x-llmflow-cache: hit`).
@@ -234,7 +235,8 @@ checks, tests, `bandit`, `pip-audit` and `npm audit`.
 ## Scope and status
 
 - **Verified live: Groq.** OpenAI and Gemini catalog entries are included and ready to use once you
-  add a key, but they have not been tested against a live key; confirm model ids and prices on your
+  add a key. Gemini's three chat models answered a direct test call with a real key; streaming and
+  routing through LLMFlow, and OpenAI, are untested; confirm model ids and prices on your
   account. Groq's `qwen3.8-27b` is selectable by name but never auto-routed (see
   [benchmarks](benchmarks/README.md)).
 - **Rule-based routing.** The difficulty score and `quality` setting choose the tier; there is no
