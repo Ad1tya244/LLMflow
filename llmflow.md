@@ -482,7 +482,7 @@ Hash-routed single-page app.
 
 **Neon:** use the direct (non-pooled) URL. Free plan has limited compute hours and scales to zero.
 
-**Keep-alive:** `.github/workflows/keepalive.yml` pings the API to reduce cold starts. Render's 750 free hours per month are roughly fully used by a single always-on service.
+**Keep-alive:** an external monitor (cron-job.org, every 1 min, `GET /healthz`) keeps the Render API awake; `.github/workflows/keepalive.yml` is a best-effort backup (GitHub delays or skips scheduled runs). `/healthz` never touches the database, so Neon still scales to zero when nobody is using the product. It wakes on demand: the `db_ready` dependency (`api/deps.py`) on `/auth/signup`, `/auth/login`, `/auth/login/mfa` and `/auth/recover` calls `UsageRepo.ensure_awake()`, which retries a `SELECT 1` (4 attempts, growing delay, 30 s connect timeout) while Neon resumes, is free for 120 s after a success, and answers 503 `service_unavailable` (Retry-After 5) if the database never comes up. There is deliberately no public wake-up endpoint, so nobody can keep Neon awake without going through the already-throttled auth routes. Render's 750 free hours per month are roughly fully used by a single always-on service.
 
 **Operator tasks**
 - Redeploy API: Render dashboard → Manual Deploy (needed for backend/config changes; docs-only changes need none).
@@ -511,7 +511,7 @@ flowchart LR
 - **Backend (Python 3.13):** ruff check and format, mypy `--strict`, pytest, bandit, pip-audit.
 - **Dashboard (Node 22):** `npm ci`, typecheck, vitest, build, `npm audit --omit=dev`.
 
-Current counts: 183 backend tests, 59 dashboard tests; lint, types and security scans clean; `npm audit` reports 0. Provider calls in tests are mocked (respx). `npm run smoke` exercises a running gateway; `npm run check` runs the full local gate. See `docs/TESTING.md`.
+Current counts: 187 backend tests, 59 dashboard tests; lint, types and security scans clean; `npm audit` reports 0. Provider calls in tests are mocked (respx). `npm run smoke` exercises a running gateway; `npm run check` runs the full local gate. See `docs/TESTING.md`.
 
 ## 18. Benchmarks
 

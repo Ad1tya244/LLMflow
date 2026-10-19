@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -108,6 +109,9 @@ def normalise_database_url(url: str) -> tuple[str, dict[str, Any]]:
     return cleaned, connect_args
 
 
+_AWAKE_FOR_S = 120.0  # trust a successful connection for this long before re-checking
+
+
 class UsageRepo:
     def __init__(self, database_url: str) -> None:
         url, connect_args = normalise_database_url(database_url)
@@ -115,8 +119,12 @@ class UsageRepo:
         if not url.startswith("sqlite"):
             # Hosted Postgres (e.g. Neon) suspends idle connections; verify before use.
             kwargs.update(pool_pre_ping=True, pool_recycle=300)
+            # A suspended Neon compute can take several seconds to resume.
+            connect_args.setdefault("timeout", 30)
+            kwargs["connect_args"] = connect_args
         self._engine: AsyncEngine = create_async_engine(url, **kwargs)
         self._sessions = async_sessionmaker(self._engine, expire_on_commit=False)
+        self._last_ok = float("-inf")
 
     @property
     def sessions(self) -> async_sessionmaker[AsyncSession]:
@@ -143,6 +151,27 @@ class UsageRepo:
                 .group_by(RequestLog.key_id)
             )
             return {k: (int(t), float(c)) for k, t, c in rows.all()}
+
+    async def ping(self, attempts: int = 4, delay_s: float = 1.5) -> bool:
+        """Open a connection and run ``SELECT 1``, retrying while a suspended hosted database
+        (Neon) resumes. Returns False instead of raising."""
+        for attempt in range(attempts):
+            try:
+                async with self._engine.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+                self._last_ok = time.monotonic()
+                return True
+            except Exception:  # any connect failure just means "not yet"
+                if attempt + 1 < attempts:
+                    await asyncio.sleep(delay_s * (attempt + 1))
+        return False
+
+    async def ensure_awake(self) -> bool:
+        """True when the database answered recently or answers now. Free while it is warm, so
+        callers can use it on every request that is about to need the database."""
+        if time.monotonic() - self._last_ok < _AWAKE_FOR_S:
+            return True
+        return await self.ping()
 
     async def close(self) -> None:
         await self._engine.dispose()

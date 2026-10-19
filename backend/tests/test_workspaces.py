@@ -1218,3 +1218,95 @@ def test_removing_a_key_clears_its_pause_and_deleting_the_workspace_erases_it(
             "SELECT COUNT(*) FROM provider_pause WHERE tenant_id = ?", (p.tenant_id,)
         ).fetchone()[0]
     assert left == 0
+
+
+def _app(catalog: Catalog, tmp_path: Path) -> Any:
+    s = Settings(_env_file=None, api_keys="operator-key-0123456789",
+                 database_url=f"sqlite+aiosqlite:///{tmp_path}/wake.db",
+                 master_key=MASTER, signup_enabled=True)  # fmt: skip
+    return create_app(s, catalog=catalog, providers={"p1": FakeProvider()}, env={"K1": "x"})
+
+
+def test_sign_in_waits_for_a_resuming_database_and_checks_only_when_cold(
+    catalog: Catalog, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from llmflow.storage.usage import UsageRepo
+
+    pings = 0
+    real_ping = UsageRepo.ping
+
+    async def counting_ping(self: UsageRepo, attempts: int = 4, delay_s: float = 1.5) -> bool:
+        nonlocal pings
+        pings += 1
+        return await real_ping(self, attempts, 0.0)
+
+    monkeypatch.setattr(UsageRepo, "ping", counting_ping)
+    body = {"email": "a@example.com", "password": PASSWORD, "workspace_name": "X"}
+    with TestClient(_app(catalog, tmp_path)) as c:
+        assert c.post("/auth/signup", json=body).status_code == 201
+        login = {"email": body["email"], "password": PASSWORD}
+        for _ in range(3):
+            assert c.post("/auth/login", json=login).status_code == 200
+    assert pings == 1  # the first call woke it; the rest rode on the recent success
+
+
+def test_sign_in_reports_503_when_the_database_does_not_come_up(
+    catalog: Catalog, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from llmflow.storage.usage import UsageRepo
+
+    async def never(self: UsageRepo, attempts: int = 4, delay_s: float = 1.5) -> bool:
+        return False
+
+    monkeypatch.setattr(UsageRepo, "ping", never)
+    body = {"email": "a@example.com", "password": PASSWORD}
+    with TestClient(_app(catalog, tmp_path)) as c:
+        r = c.post("/auth/login", json=body)
+        assert r.status_code == 503
+        assert r.json()["error"]["type"] == "service_unavailable"
+        assert r.headers["retry-after"] == "5"
+        assert c.get("/public/info").status_code == 200  # public pages never need the database
+        assert c.get("/public/warm").status_code == 404  # no public wake-up endpoint exists
+
+
+async def test_ensure_awake_retries_a_refused_first_connection(tmp_path: Path) -> None:
+    from llmflow.storage.usage import UsageRepo
+
+    repo = UsageRepo(f"sqlite+aiosqlite:///{tmp_path}/retry.db")
+    real = repo._engine
+    attempts = 0
+
+    class Flaky:
+        """Refuses the first two connections, like a compute that is still resuming."""
+
+        def connect(self) -> Any:
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                raise ConnectionRefusedError("compute is resuming")
+            return real.connect()
+
+        async def dispose(self) -> None:
+            await real.dispose()
+
+    repo._engine = Flaky()  # type: ignore[assignment]
+    try:
+        assert await repo.ping(attempts=4, delay_s=0.0) is True
+        assert attempts == 3
+    finally:
+        await repo.close()
+
+
+def test_database_ping_returns_true_when_reachable(tmp_path: Path) -> None:
+    import asyncio
+
+    from llmflow.storage.usage import UsageRepo
+
+    async def run() -> bool:
+        repo = UsageRepo(f"sqlite+aiosqlite:///{tmp_path}/ping.db")
+        try:
+            return await repo.ping()
+        finally:
+            await repo.close()
+
+    assert asyncio.run(run()) is True

@@ -138,3 +138,19 @@ def _admin(request: Request, authorization: Annotated[str | None, Header()] = No
 ClientCaller = Annotated[Caller, Depends(_caller)]
 Workspace = Annotated[WorkspaceSession, Depends(_workspace)]
 AdminPrincipal = Annotated[str, Depends(_admin)]
+
+
+async def db_ready(request: Request) -> None:
+    """Dependency for entry points that need the database (sign-in, sign-up, recovery).
+
+    A suspended hosted database (Neon) takes a few seconds to resume and can refuse the first
+    connection; this waits for it, with retries, instead of failing the person's request. It
+    adds no public surface: these routes already query the database and are already throttled.
+    """
+    if not await request.app.state.usage.ensure_awake():
+        raise GatewayError(
+            503,
+            "service_unavailable",
+            "the database is starting up; try again in a moment",
+            {"Retry-After": "5"},
+        )

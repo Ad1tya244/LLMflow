@@ -7,7 +7,7 @@ import re
 import time
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,6 +15,7 @@ from llmflow.api.deps import (
     CSRF_HEADER,
     SESSION_COOKIE,
     Workspace,
+    db_ready,
     request_ip,
     throttle,
 )
@@ -115,7 +116,7 @@ def _profile(tenant_name: str, tenant_id: str, email: str) -> dict[str, Any]:
     return {"workspace": {"id": tenant_id, "name": tenant_name}, "user": {"email": email}}
 
 
-@router.post("/signup", status_code=201)
+@router.post("/signup", status_code=201, dependencies=[Depends(db_ready)])
 async def signup(request: Request, body: Signup) -> JSONResponse:
     """Create a workspace and its owner. Secrets are shown once: the first API key and the
     recovery codes. Only hashes are stored."""
@@ -164,7 +165,7 @@ async def signup(request: Request, body: Signup) -> JSONResponse:
     return _issue(request, payload, tenant.id, user.id, 201)
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(db_ready)])
 async def login(request: Request, body: Login) -> JSONResponse:
     repo = _repo(request)
     st = request.app.state
@@ -202,7 +203,7 @@ async def login(request: Request, body: Login) -> JSONResponse:
     return _issue(request, _profile(tenant.name, tenant.id, email), tenant.id, auth.user.id)
 
 
-@router.post("/login/mfa")
+@router.post("/login/mfa", dependencies=[Depends(db_ready)])
 async def login_mfa(request: Request, body: MfaLogin) -> JSONResponse:
     """Second step of sign-in: a TOTP code, or a one-time recovery code as a backup factor."""
     repo = _repo(request)
@@ -390,7 +391,7 @@ async def delete_workspace(request: Request, body: DeleteWorkspace, ws: Workspac
     return response
 
 
-@router.post("/recover")
+@router.post("/recover", dependencies=[Depends(db_ready)])
 async def recover(request: Request, body: Recover) -> dict[str, Any]:
     """Reset a forgotten password with a one-time recovery code (no email needed)."""
     repo = _repo(request)
