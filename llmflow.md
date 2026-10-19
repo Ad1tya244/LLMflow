@@ -511,7 +511,7 @@ flowchart LR
 - **Backend (Python 3.13):** ruff check and format, mypy `--strict`, pytest, bandit, pip-audit.
 - **Dashboard (Node 22):** `npm ci`, typecheck, vitest, build, `npm audit --omit=dev`.
 
-Current counts: 187 backend tests, 59 dashboard tests; lint, types and security scans clean; `npm audit` reports 0. Provider calls in tests are mocked (respx). `npm run smoke` exercises a running gateway; `npm run check` runs the full local gate. See `docs/TESTING.md`.
+Current counts: 187 backend tests, 60 dashboard tests; lint, types and security scans clean; `npm audit` reports 0. Provider calls in tests are mocked (respx). `npm run smoke` exercises a running gateway; `npm run check` runs the full local gate. See `docs/TESTING.md`.
 
 ## 18. Benchmarks
 

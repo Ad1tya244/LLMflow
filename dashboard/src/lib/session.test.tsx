@@ -114,4 +114,46 @@ describe("ConnectionProvider", () => {
     const everything = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage });
     for (const secret of ["my-secret-passphrase", "csrf-abc"]) expect(everything).not.toContain(secret);
   });
+
+  it("sends the person to the landing page on sign-out, not back to the sign-in form", async () => {
+    window.location.hash = "#/signin";
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/auth/login") && init?.method === "POST") {
+        return json(200, {
+          csrf_token: "csrf-abc",
+          workspace: { id: "t_1", name: "Acme" },
+          user: { email: "a@example.com" },
+        });
+      }
+      return json(200, { authenticated: false });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    function Out() {
+      const { auth, signIn, signOut } = useConnection();
+      return (
+        <div>
+          <span data-testid="auth">{auth}</span>
+          <button onClick={() => void signIn("a@example.com", "my-secret-passphrase")}>in</button>
+          <button onClick={() => void signOut()}>out</button>
+        </div>
+      );
+    }
+    render(
+      <ConnectionProvider>
+        <Out />
+      </ConnectionProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("signed_out"));
+    await act(async () => {
+      screen.getByText("in").click();
+    });
+    await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("signed_in"));
+    expect(window.location.hash).toBe("#/signin");
+    await act(async () => {
+      screen.getByText("out").click();
+    });
+    await waitFor(() => expect(screen.getByTestId("auth")).toHaveTextContent("signed_out"));
+    expect(window.location.hash).toBe("#/");
+  });
 });

@@ -105,6 +105,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       await api.logout({ baseUrl: GATEWAY_URL, csrf });
     } finally {
       clear();
+      // Leave the signed-in address behind: "#/signin" would otherwise bring the login form back.
+      window.location.hash = "#/";
     }
   }, [csrf, clear]);
 
