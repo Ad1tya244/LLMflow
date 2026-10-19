@@ -46,7 +46,9 @@ export function StackedBars({
     const ro = new ResizeObserver(() => setWidth(el.clientWidth || 640));
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // The chart element only exists in chart view: measure it again each time it comes back,
+    // otherwise the width falls back to its default after a trip through the table view.
+  }, [table]);
 
   const totals = useMemo(
     () => points.map((p) => series.reduce((sum, s) => sum + Number(p[s.key]), 0)),
@@ -57,6 +59,11 @@ export function StackedBars({
   const yMax = ticks[ticks.length - 1] ?? 1;
   const plotW = Math.max(10, width - M.left - M.right);
   const plotH = height - M.top - M.bottom;
+  const activeRows = useMemo(
+    () => points.filter((p) => series.some((s) => Number(p[s.key]) !== 0)),
+    [points, series],
+  );
+  const hiddenCount = points.length - activeRows.length;
   const slot = plotW / Math.max(1, points.length);
   const barW = Math.max(2, Math.min(MAX_BAR, slot - GAP));
   const y = (v: number) => M.top + plotH - (v / yMax) * plotH;
@@ -96,6 +103,7 @@ export function StackedBars({
       </div>
 
       {table ? (
+        <>
         <div className="table-wrap" style={{ maxHeight: height + 40, overflowY: "auto" }}>
           <table>
             <thead>
@@ -109,7 +117,7 @@ export function StackedBars({
               </tr>
             </thead>
             <tbody>
-              {points.map((p) => (
+              {activeRows.map((p) => (
                 <tr key={p.ts}>
                   <td>{dateTime(p.ts)}</td>
                   {series.map((s) => (
@@ -119,9 +127,22 @@ export function StackedBars({
                   ))}
                 </tr>
               ))}
+              {activeRows.length === 0 && (
+                <tr>
+                  <td colSpan={series.length + 1} className="muted">
+                    No activity in this range.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+        {hiddenCount > 0 && activeRows.length > 0 && (
+          <p className="table-note">
+            {hiddenCount} empty {hiddenCount === 1 ? "interval" : "intervals"} with no activity not shown.
+          </p>
+        )}
+        </>
       ) : (
         <div className="chart" ref={wrap}>
           <svg

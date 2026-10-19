@@ -1,7 +1,7 @@
 /** Search-engine files generated at build time from one public site URL, so a custom domain only
  *  needs ``VITE_SITE_URL`` changed (no hand-edited sitemap or canonical tags). */
 
-export const DEFAULT_SITE_URL = "https://llm-flow-live.vercel.app";
+export const DEFAULT_SITE_URL = "https://llmflow-gateway.vercel.app";
 
 export function normaliseSiteUrl(raw: string | undefined): string {
   const url = (raw ?? "").trim() || DEFAULT_SITE_URL;

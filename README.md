@@ -10,7 +10,7 @@ key once, and LLMFlow picks a model per request, falls back when a provider is r
 caches deterministic requests, enforces budgets, and shows you what it did and what it cost.
 
 <p align="center">
-  <b><a href="https://llm-flow-live.vercel.app">Live demo</a></b> &nbsp;·&nbsp;
+  <b><a href="https://llmflow-gateway.vercel.app">Live demo</a></b> &nbsp;·&nbsp;
   <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
   <a href="docs/SECURITY.md">Security</a> &nbsp;·&nbsp;
   <a href="benchmarks/README.md">Benchmarks</a>
@@ -28,14 +28,11 @@ caches deterministic requests, enforces budgets, and shows you what it did and w
 ## Screenshots
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/landing-dark.png">
-    <img src="docs/assets/landing-light.png" alt="The LLMFlow landing page: headline, a short code sample and the response headers that explain each routing decision." width="100%">
-  </picture>
+  <img src="docs/assets/landing-dark.png" alt="The LLMFlow landing page: headline, a short code sample using the live gateway address, and the response headers that explain each routing decision." width="100%">
 </p>
 
-The landing page, shown in the visitor's theme. The images below are from the live deployment
-with a few dozen test requests; the dashboard itself sits behind sign-in.
+The landing page (it also has a light theme). The images below are from the live deployment with a
+few dozen test requests; the dashboard itself sits behind sign-in.
 
 **Playground**: send a request and see how it was routed. The reply is rendered as formatted
 text (tables, math, code), and the Routing panel says which model answered and why.
@@ -48,7 +45,7 @@ text (tables, math, code), and the Routing panel says which model answered and w
 largest model, cache hit rate, latency, and the model tier each request was routed to.
 
 <p align="center">
-  <img src="docs/assets/overview.png" alt="The Overview page: 41 requests, 0% errors, 29.7K tokens, a 27% cache hit rate, 538 ms median latency, and a chart of requests by model tier." width="100%">
+  <img src="docs/assets/overview.png" alt="The Overview page: 57 requests with 1 failed (1.8% error rate), 46K tokens, $0.031 shadow cost, $0.119 saved versus always using the largest model, a 27% cache hit rate, 539 ms median latency, and a chart of requests by model tier." width="100%">
 </p>
 
 **Requests**: every request with its routing decision (model, provider, status, tokens, latency,

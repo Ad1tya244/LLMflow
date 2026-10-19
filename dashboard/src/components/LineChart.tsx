@@ -39,6 +39,11 @@ export function LineChart({
   }, [table]);
 
   const max = useMemo(() => Math.max(0, ...series.flatMap((s) => s.values)), [series]);
+  const activeRows = useMemo(
+    () => times.map((t, i) => ({ t, i })).filter(({ i }) => series.some((s) => (s.values[i] ?? 0) !== 0)),
+    [times, series],
+  );
+  const hiddenCount = times.length - activeRows.length;
   const ticks = niceTicks(max, 4);
   const yMax = ticks[ticks.length - 1] ?? 1;
   const plotW = Math.max(10, width - M.left - M.right);
@@ -89,6 +94,7 @@ export function LineChart({
         </button>
       </div>
       {table ? (
+        <>
         <div className="table-wrap" style={{ maxHeight: height + 40, overflowY: "auto" }}>
           <table>
             <thead>
@@ -102,7 +108,7 @@ export function LineChart({
               </tr>
             </thead>
             <tbody>
-              {times.map((t, i) => (
+              {activeRows.map(({ t, i }) => (
                 <tr key={t}>
                   <td>{dateTime(t)}</td>
                   {series.map((s) => (
@@ -112,9 +118,22 @@ export function LineChart({
                   ))}
                 </tr>
               ))}
+              {activeRows.length === 0 && (
+                <tr>
+                  <td colSpan={series.length + 1} className="muted">
+                    No activity in this range.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+        {hiddenCount > 0 && activeRows.length > 0 && (
+          <p className="table-note">
+            {hiddenCount} empty {hiddenCount === 1 ? "interval" : "intervals"} with no activity not shown.
+          </p>
+        )}
+        </>
       ) : (
         <div className="chart" ref={wrap}>
           <svg

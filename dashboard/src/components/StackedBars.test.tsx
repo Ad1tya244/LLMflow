@@ -19,14 +19,41 @@ const SERIES: BarSeries[] = [
   { key: "large", label: "Large tier", color: "blue" },
 ];
 
+const observed: Element[] = [];
 class RO {
-  observe() {}
+  observe(el: Element) {
+    observed.push(el);
+  }
   disconnect() {}
 }
 
 describe("StackedBars", () => {
   beforeAll(() => {
     vi.stubGlobal("ResizeObserver", RO);
+  });
+
+  it("measures the chart again after switching to the table and back", () => {
+    const { container } = render(<StackedBars points={[point(1_700_000_000, 3, 2)]} series={SERIES} bucketS={1800} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show table" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show chart" }));
+    const chart = container.querySelector(".chart");
+    expect(chart).not.toBeNull();
+    expect(observed[observed.length - 1]).toBe(chart); // the NEW chart element is being observed
+  });
+
+  it("table view hides empty intervals and says how many", () => {
+    const pts = [point(1_700_000_000, 0, 0), point(1_700_001_800, 0, 0), point(1_700_003_600, 3, 1), point(1_700_005_400, 0, 0)];
+    render(<StackedBars points={pts} series={SERIES} bucketS={1800} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show table" }));
+    expect(screen.getAllByRole("row")).toHaveLength(2); // header + the one interval with activity
+    expect(screen.getByText("3 empty intervals with no activity not shown.")).toBeInTheDocument();
+  });
+
+  it("table view says so when the whole range is empty", () => {
+    render(<StackedBars points={[point(1_700_000_000, 0, 0), point(1_700_001_800, 0, 0)]} series={SERIES} bucketS={1800} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show table" }));
+    expect(screen.getByText("No activity in this range.")).toBeInTheDocument();
+    expect(screen.queryByText(/not shown/)).toBeNull();
   });
 
   it("renders a legend and offers a table view with every value", () => {

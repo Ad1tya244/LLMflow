@@ -439,3 +439,5 @@ td.sub-row { white-space: normal; background: var(--surface-2); color: var(--tex
 .reveal { padding: 4px 0; }
 .reveal-row td { background: var(--surface-2); padding: 14px 20px; }
 .panel-body > .reveal { border-top: 1px solid var(--border); padding-top: 16px; }
+
+.table-note { margin: 0; padding: 10px 12px 2px; font-size: 12px; color: var(--text-3); }

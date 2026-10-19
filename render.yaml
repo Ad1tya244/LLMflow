@@ -27,7 +27,7 @@ services:
         sync: false
       - key: LLMFLOW_DATABASE_URL      # Neon connection string; ephemeral SQLite is lost on every restart
         sync: false
-      - key: LLMFLOW_CORS_ORIGINS      # exact dashboard origin, e.g. https://llmflow.vercel.app
+      - key: LLMFLOW_CORS_ORIGINS      # exact dashboard origin, e.g. https://llmflow-gateway.vercel.app
         sync: false
       - key: LLMFLOW_TRUST_FORWARDED_FOR
         value: "true"

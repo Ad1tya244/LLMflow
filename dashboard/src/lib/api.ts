@@ -30,7 +30,7 @@ export interface SignupResult extends SessionInfo {
   recovery_codes: string[];
 }
 
-/** Short, human label for where requests go, e.g. "llm-flow-live.vercel.app/gw". */
+/** Short, human label for where requests go, e.g. "llmflow-gateway.vercel.app/gw". */
 export function describeGateway(baseUrl: string): string {
   return baseUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "") || "the gateway";
 }

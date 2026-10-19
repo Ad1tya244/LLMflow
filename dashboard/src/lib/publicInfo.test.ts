@@ -5,8 +5,8 @@ afterEach(() => vi.unstubAllGlobals());
 describe("publicInfo failure messages", () => {
   it("names the host when the browser cannot connect at all", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
-    await expect(api.publicInfo("https://llm-flow-live.vercel.app/gw")).rejects.toThrow(
-      /could not connect to llm-flow-live\.vercel\.app\/gw.*blocker/,
+    await expect(api.publicInfo("https://llmflow-gateway.vercel.app/gw")).rejects.toThrow(
+      /could not connect to llmflow-gateway\.vercel\.app\/gw.*blocker/,
     );
   });
 
