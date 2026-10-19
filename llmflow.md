@@ -72,7 +72,7 @@ Sign-up on the live demo is **invite-code only** (`LLMFLOW_SIGNUP_CODE`). Groq a
 **Dashboard** (`dashboard/`)
 - Vite 8, React 19, TypeScript 7, hash routing (`#/…`)
 - Geist Sans/Mono (`@fontsource-variable`), lucide-react icons, hand-built SVG charts
-- `react-markdown`, `remark-gfm`, `remark-math`, `rehype-katex`, `katex` (Playground renders Markdown and LaTeX; raw HTML is never rendered)
+- `react-markdown`, `remark-gfm`, `remark-math`, `rehype-katex`, `katex` (Playground renders Markdown and LaTeX; raw HTML is never rendered. `\( \)`, `\[ \]` and `$...$` are all read as math, but `$...$` only when it contains a LaTeX command such as `\frac`, so dollar amounts like "$650,000 and $420,000" stay plain text)
 - `@vercel/analytics` for privacy-friendly page analytics (URLs stripped)
 - vitest 5 + Testing Library
 
@@ -469,9 +469,10 @@ Dashboard: `VITE_GATEWAY_URL` (default `http://localhost:8000`; in production th
 Hash-routed single-page app.
 
 - **Public:** `#/` landing, `#/signin`, `#/signup`, `#/recover`. The landing page renders without waiting for the API.
-- **Signed in:** Overview (stats, charts, routing mix, savings, table view), Requests (log), Providers (add/update/reveal/pause/remove keys), API keys, Connect (copy-paste snippets), Playground (chat with Markdown/LaTeX output), Workspace (defaults, budgets, audit, delete), Account (password, MFA, recovery codes, sessions).
+- **Signed in:** Overview (stats, charts, routing mix, savings, table view), Requests (log), Providers (add/update/reveal/pause/remove keys), API keys, Connect (copy-paste snippets), Playground (a chat with Markdown/LaTeX output), Workspace (defaults, budgets, audit, delete), Account (password, MFA, recovery codes, sessions).
+- **Playground conversations:** a chat is one list of messages held in the browser. Every send carries that chat's messages, so replies stay in context even when the router picks a different model each turn (every model receives plain `messages`). "New chat" empties the list. The chat is one card whose height follows the Options + Routing column beside it, so both end on the same line (the Routing box has a fixed height, scrolling internally, so nothing resizes when a reply arrives): messages scroll inside it and the message bar stays pinned at its bottom. Each finished reply has a copy icon under it. Nothing is stored on the server. To protect the free tiers' per-minute token limits and the cost savings, the history sent is capped at about 16,000 characters (about 4,000 tokens): the oldest messages are dropped first, the newest message is always kept, and the sent history always starts on a user message (`trimHistory` in `dashboard/src/lib/chat.ts`). When trimming happens the page says so. The gateway itself stays stateless like the OpenAI API: API clients send their own history.
 - **State:** in-memory CSRF token + HttpOnly cookie session; no tokens in localStorage.
-- **Design:** tokens in `docs/design-system.md` (light `#f9f9f7`, dark `#0d0d0d`, accent blue, radius ≤ 6 px, no gradients, glow or emoji, 28 px controls). Charts are hand-built SVG with a table fallback.
+- **Design:** tokens in `docs/design-system.md` (light `#f9f9f7`, dark `#0d0d0d`, accent blue, radius ≤ 6 px except the Playground message box (pill-shaped container with a concentric round send button), no gradients, glow or emoji, 28 px controls). Charts are hand-built SVG with a table fallback.
 - **SEO and analytics:** `dashboard/seo.ts`, Search Console verification file in `dashboard/public/`, Vercel Web Analytics with URL stripping.
 
 ## 16. Deployment and operations
@@ -511,7 +512,7 @@ flowchart LR
 - **Backend (Python 3.13):** ruff check and format, mypy `--strict`, pytest, bandit, pip-audit.
 - **Dashboard (Node 22):** `npm ci`, typecheck, vitest, build, `npm audit --omit=dev`.
 
-Current counts: 187 backend tests, 60 dashboard tests; lint, types and security scans clean; `npm audit` reports 0. Provider calls in tests are mocked (respx). `npm run smoke` exercises a running gateway; `npm run check` runs the full local gate. See `docs/TESTING.md`.
+Current counts: 187 backend tests, 68 dashboard tests; lint, types and security scans clean; `npm audit` reports 0. Provider calls in tests are mocked (respx). `npm run smoke` exercises a running gateway; `npm run check` runs the full local gate. See `docs/TESTING.md`.
 
 ## 18. Benchmarks
 

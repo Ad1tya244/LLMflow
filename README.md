@@ -31,14 +31,16 @@ caches deterministic requests, enforces budgets, and shows you what it did and w
   <img src="docs/assets/landing-dark.png" alt="The LLMFlow landing page: headline, a short code sample using the live gateway address, and the response headers that explain each routing decision." width="100%">
 </p>
 
-The landing page (it also has a light theme). The images below are from the live deployment with a
-few dozen test requests; the dashboard itself sits behind sign-in.
+The landing page (it also has a light theme). The images below come from running instances with a
+few dozen test requests (the Playground one from a local run); the dashboard itself sits behind sign-in.
 
-**Playground**: send a request and see how it was routed. The reply is rendered as formatted
-text (tables, math, code), and the Routing panel says which model answered and why.
+**Playground**: chat through the gateway and see how each reply was routed. Messages in the same
+chat share context, even when the router picks a different model each turn; a new chat starts
+fresh. Replies are rendered as formatted text (tables, math, code), and the Routing panel says
+which model answered and why.
 
 <p align="center">
-  <img src="docs/assets/playground.png" alt="The Playground: a prompt about shareholder ownership after a new investment, a formatted step-by-step reply with a table and math, and a Routing panel showing it was served by groq-gpt-oss-20b with difficulty 0.12 needing quality 0.36." width="100%">
+  <img src="docs/assets/playground.png" alt="The Playground as a chat: a question about shareholder ownership after a new investment, a formatted step-by-step reply with a table, a pill-shaped message bar below it, and a Routing panel showing the reply was served by groq-gpt-oss-20b with difficulty 0.12 needing quality 0.36." width="100%">
 </p>
 
 **Overview**: traffic, error rate, tokens, shadow cost, the estimated saving versus always using the

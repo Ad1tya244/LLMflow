@@ -1,12 +1,40 @@
 import { ApiError, toError, type Connection } from "./api";
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface ChatOptions {
   model: string;
-  prompt: string;
+  messages: ChatMessage[];
   quality: "low" | "balanced" | "high";
   privacy: "standard" | "strict";
   stream: boolean;
   cache?: boolean;
+}
+
+/** Rough cap on the history sent with each message (about 4,000 tokens). A chat keeps its
+ *  context, but a long one must not grow every request without limit: that would eat the free
+ *  tiers' per-minute token limits and the cost savings. */
+export const MAX_HISTORY_CHARS = 16_000;
+
+/** Keeps the newest messages that fit ``maxChars``. The newest message is always kept, and the
+ *  result starts on a user message so the model never sees a reply without its question. */
+export function trimHistory(
+  messages: ChatMessage[],
+  maxChars: number = MAX_HISTORY_CHARS,
+): { messages: ChatMessage[]; dropped: number } {
+  let used = 0;
+  let start = messages.length;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const size = messages[i]!.content.length;
+    if (i < messages.length - 1 && used + size > maxChars) break;
+    used += size;
+    start = i;
+  }
+  while (start < messages.length - 1 && messages[start]!.role !== "user") start++;
+  return { messages: messages.slice(start), dropped: start };
 }
 
 export interface RouteInfo {
@@ -56,7 +84,7 @@ export async function sendChat(
       body: JSON.stringify({
         model: opts.model,
         stream: opts.stream && !opts.cache,
-        messages: [{ role: "user", content: opts.prompt }],
+        messages: opts.messages,
         llmflow: { quality: opts.quality, privacy: opts.privacy, ...(opts.cache ? { cache: "on" } : {}) },
       }),
     });

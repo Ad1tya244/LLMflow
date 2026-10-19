@@ -417,21 +417,49 @@ td.sub-row { white-space: normal; background: var(--surface-2); color: var(--tex
 .pw-toggle:hover { color: var(--text); background: var(--surface-2); }
 .pw-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* Playground: one shared grid so each row's cards end together
-   (Prompt | Options on top, Response | Routing below). */
+/* Playground: the chat card takes its height from the Options + Routing column beside it, so
+   both end on the same line. Messages scroll inside the card; the message bar stays at its
+   bottom. */
 .play-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: stretch; }
 .play-grid > .panel { margin: 0; min-width: 0; }
-.p-prompt { grid-column: 1; grid-row: 1; }
-.p-options { grid-column: 2; grid-row: 1; }
-.p-response { grid-column: 1; grid-row: 2; }
-.p-routing { grid-column: 2; grid-row: 2; }
-.p-prompt .field { flex: 1; }
-.p-prompt .textarea { flex: 1; min-height: 120px; }
-.play-response { min-height: 280px; display: flex; flex-direction: column; }
-.play-response > .panel-body { flex: 1; max-height: 560px; overflow-y: auto; }
+.p-chat { position: relative; min-height: 560px; }
+.chat-inner { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.play-side { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.play-side > .panel { margin: 0; }
+/* Fixed height whether or not a request has been sent, so filling it in never resizes the column
+   (and with it the chat card). A long route reason scrolls inside the box. */
+.play-side > .p-routing { flex: none; height: 300px; display: flex; flex-direction: column; }
+.p-routing > .panel-body { flex: 1; min-height: 0; overflow-y: auto; }
+.chat-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.chat-composer { border-top: 1px solid var(--border); padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
+/* One pill holds the text box and the send button. Outer radius = button radius + padding + border,
+   so the curves are concentric. The larger radius is deliberate for this one control. */
+.composer-box { display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--border); border-radius: 25px; background: var(--bg); padding: 6px 6px 6px 20px; transition: border-color 0.15s; }
+.composer-box:hover { border-color: var(--text-3); }
+.composer-box:focus-within { border-color: var(--accent); }
+.composer-box .textarea { flex: 1; min-width: 0; border: 0; background: transparent; padding: 8px 0; min-height: 36px; max-height: 160px; line-height: 20px; resize: none; overflow-y: auto; }
+.composer-box .textarea:hover, .composer-box .textarea:focus-visible { border: 0; outline: none; }
+.send-btn { flex: none; width: 36px; height: 36px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--ink); color: var(--on-ink); cursor: pointer; transition: opacity 0.15s; }
+.send-btn:disabled { opacity: 0.3; cursor: default; }
+.send-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The hint lines up with the typed text inside the pill (1px border + 20px padding) and is dimmer
+   than the primary text; "New chat" takes the primary colour so it is easy to see. */
+.chat-composer .hint { padding-left: 21px; color: var(--text-2); }
+.p-chat .panel-head .btn.ghost { color: var(--text); }
+.turn-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.turn-actions .turn-meta { margin-top: 0; }
+.icon-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--text-3); cursor: pointer; }
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.thread { display: flex; flex-direction: column; gap: 20px; }
+.turn-user { align-self: flex-end; max-width: 80%; }
+.turn-user-text { background: var(--surface-2); border-radius: 6px; padding: 8px 12px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+.turn-assistant { align-self: stretch; }
+.turn .response { min-height: 0; }
+.turn-meta { display: block; font-size: 12px; color: var(--text-3); font-family: var(--font-mono); }
 @media (max-width: 900px) {
   .play-grid { grid-template-columns: 1fr; }
-  .p-prompt, .p-options, .p-response, .p-routing { grid-column: 1; grid-row: auto; }
+  .p-chat { height: 70vh; min-height: 480px; }
 }
 
 /* Viewing saved keys */

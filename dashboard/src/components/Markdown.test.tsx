@@ -10,6 +10,26 @@ describe("normaliseMath", () => {
     expect(normaliseMath(code)).toBe(code);
     expect(normaliseMath("use `\\(x\\)` inline")).toBe("use `\\(x\\)` inline");
   });
+  it("reads $...$ as math only when it holds a LaTeX command", () => {
+    expect(normaliseMath("$\\displaystyle \\frac{420,000}{1,070,000}$")).toBe(
+      "$$\\displaystyle \\frac{420,000}{1,070,000}$$",
+    );
+    expect(normaliseMath("$42\\% \\times 0.607$")).toBe("$$42\\% \\times 0.607$$");
+    expect(normaliseMath("It costs $5 and $\\frac{1}{2}$ more")).toBe("It costs $5 and $$\\frac{1}{2}$$ more");
+    const plain = "$650,000 and $420,000, escaped \\$5 and \\$7";
+    expect(normaliseMath(plain)).toBe(plain);
+    expect(normaliseMath("already $$\\frac{1}{2}$$ done")).toBe("already $$\\frac{1}{2}$$ done");
+  });
+  it("renders the model's fraction instead of showing the dollar source", () => {
+    const { container } = render(
+      <Markdown source={"| Item | Calc |\n|---|---|\n| Stake | $\\displaystyle \\frac{420,000}{1,070,000}$ |"} />,
+    );
+    expect(container.querySelectorAll("td .katex").length).toBe(1);
+    // the visible layer (the hidden MathML copy keeps the source for screen readers)
+    const visible = [...container.querySelectorAll(".katex-html")].map((n) => n.textContent).join(" ");
+    expect(visible).not.toContain("\\");
+    expect(visible).not.toContain("$");
+  });
   it("does not treat currency as math", () => {
     const { container } = render(<Markdown source={"It costs $5 and then $10 more."} />);
     expect(container.querySelector(".katex")).toBeNull();

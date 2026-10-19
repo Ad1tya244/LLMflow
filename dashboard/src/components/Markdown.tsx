@@ -20,7 +20,13 @@ export function normaliseMath(source: string): string {
         ? part
         : part
             .replace(/\\\[([\s\S]+?)\\\]/g, (_m, body: string) => `\n\n$$\n${body.trim()}\n$$\n\n`)
-            .replace(/\\\(([\s\S]+?)\\\)/g, (_m, body: string) => `$$${body.trim()}$$`),
+            .replace(/\\\(([\s\S]+?)\\\)/g, (_m, body: string) => `$$${body.trim()}$$`)
+            // Models also write inline math as $...$. That is only read as math when it holds a
+            // LaTeX command (\frac, \times, ...), so "$5 and $10" stays plain currency text.
+            .replace(
+              /(?<![\\$])\$([^$\n]*\\[a-zA-Z][^$\n]*)\$(?!\$)/g,
+              (_m, body: string) => `$$${body.trim()}$$`,
+            ),
     )
     .join("");
 }

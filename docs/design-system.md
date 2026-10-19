@@ -49,7 +49,7 @@ Chart ordinal ramp (tiers small → medium → large): blue steps 250 / 400 / 55
 ### Space, shape, motion
 
 - 4 px base: 4, 8, 12, 16, 24, 32, 48. Page gutters 32 (≥1024), 16 (mobile).
-- Radius: 4 (controls, badges), 6 (panels). Nothing larger.
+- Radius: 4 (controls, badges), 6 (panels). Nothing larger, with one deliberate exception: the Playground message box is a pill (25 px radius) with a round 36 px send button inside it, concentric with the pill's curve, so the text area and button share one height and outline (chat convention).
 - Borders 1 px; shadows only on floating layers (tooltip, menu): `0 4px 16px rgba(0,0,0,.12)`.
 - Motion 120 ms ease-out for hover/focus; respects `prefers-reduced-motion`.
 
