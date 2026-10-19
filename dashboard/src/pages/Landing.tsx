@@ -293,7 +293,7 @@ reply = client.chat.completions.create(
           <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
             <Mark size={18} /> LLMFlow · MIT License
           </span>
-          <span>Provider keys are encrypted at rest and in transit. Your prompts and responses stay private.</span>
+          <span>Provider keys are encrypted at rest and in transit. Your prompts and responses stay private. Anonymous page-view statistics only.</span>
         </div>
       </footer>
     </div>

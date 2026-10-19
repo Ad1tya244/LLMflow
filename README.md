@@ -242,6 +242,14 @@ render.yaml   Render blueprint (API); dashboard targets any static host
 AGENT.md      Project rules and decisions log
 ```
 
+## Privacy of the site itself
+
+The public site uses Vercel Web Analytics for anonymous, aggregate page views. According to Vercel's
+documentation it sets no third-party cookies and identifies a visitor only by a hash that is
+discarded after 24 hours. The dashboard strips query strings and `#` fragments before anything is
+sent (`dashboard/src/lib/analytics.ts`), so signed-in routes and any future one-time links never
+reach the analytics service. Prompts, responses and provider keys are never part of it.
+
 ## SEO
 
 The landing page ships a descriptive title and meta description, a canonical URL, Open Graph and

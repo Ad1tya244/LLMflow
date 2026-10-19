@@ -140,6 +140,14 @@ TOTP (RFC 6238, SHA-1, 6 digits, 30 s; works with any authenticator app), option
 Residual: recovery codes bypass the second factor by design (they are the lost-device path), so
 they must be stored as carefully as the password. Password reset by recovery code does not disable MFA.
 
+## Site analytics (2026-10-20)
+
+| Control | Detail |
+|---|---|
+| Anonymous page views only | Vercel Web Analytics, production builds only. No prompts, responses, keys or account data are involved. |
+| URLs are stripped first | `beforeSend` removes the query string and `#` fragment (tested), so hash routes and any future one-time token in a link are never sent. |
+| Same-origin loading | The script and its calls use the site's own origin, so the Content-Security-Policy (`script-src 'self'`, `connect-src 'self'`) is unchanged. |
+
 ## Rendering model output (2026-10-18)
 
 | Control | Detail |

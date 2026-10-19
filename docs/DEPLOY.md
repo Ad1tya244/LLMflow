@@ -36,6 +36,14 @@ Chrome) that would break sign-in if the dashboard called the Render domain direc
 
 Applications (the OpenAI SDK) can call either the Render URL or `https://<your-app>.vercel.app/gw`.
 
+### Web analytics (optional)
+Vercel Web Analytics counts page views anonymously. To turn it on: in Vercel open the project, go
+to **Analytics**, and click **Enable**; then deploy once (enabling adds routes under
+`/_vercel/insights/*` on the next deployment). The code is already in the app and only runs in
+production builds. The Hobby plan includes 50,000 events a month with a one-month reporting window;
+over that, collection pauses and nothing is billed. The script and its data calls are same-origin,
+so the strict Content-Security-Policy in `dashboard/vercel.json` needs no change.
+
 ### Keeping the free API awake
 Render's free web service sleeps after about 15 idle minutes, and waking takes 30-60 seconds (the
 Vercel proxy can time out on that first call). `.github/workflows/keepalive.yml` calls `/healthz`
