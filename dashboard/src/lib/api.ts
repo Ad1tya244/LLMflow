@@ -30,6 +30,11 @@ export interface SignupResult extends SessionInfo {
   recovery_codes: string[];
 }
 
+/** Short, human label for where requests go, e.g. "llm-flow-live.vercel.app/gw". */
+export function describeGateway(baseUrl: string): string {
+  return baseUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "") || "the gateway";
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -181,12 +186,30 @@ export const api = {
   logout: async (c: Connection) => {
     await send(c.baseUrl, "/auth/logout", { method: "POST" }, c.csrf);
   },
-  publicInfo: async (baseUrl: string): Promise<PublicInfo | null> => {
+  /** Public gateway facts for the sign-in screen. Throws an ApiError that says what failed. */
+  publicInfo: async (baseUrl: string): Promise<PublicInfo> => {
+    const where = describeGateway(baseUrl);
+    let res: Response;
     try {
-      const res = await send(baseUrl, "/public/info", {});
-      return res.ok ? ((await res.json()) as PublicInfo) : null;
+      res = await send(baseUrl, "/public/info", {});
     } catch {
-      return null;
+      throw new ApiError(
+        `The browser could not connect to ${where}. Check your internet connection, and whether an ad blocker, VPN or network filter is blocking it.`,
+        0,
+        "network",
+      );
+    }
+    if (!res.ok) {
+      throw new ApiError(
+        `${where} answered with HTTP ${res.status}. The service may be starting up or restarting; try again in a minute.`,
+        res.status,
+        "unavailable",
+      );
+    }
+    try {
+      return (await res.json()) as PublicInfo;
+    } catch {
+      throw new ApiError(`${where} sent a reply this page could not read.`, res.status, "bad_response");
     }
   },
   health: async (baseUrl: string) => {

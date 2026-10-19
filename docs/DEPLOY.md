@@ -1,6 +1,6 @@
 # Deploying on free tiers
 
-Target: **Render** (API), **Neon** (Postgres), **Vercel** (dashboard). None require a payment method. I could not create these accounts, so this has **not** been exercised on live infrastructure; the steps follow each provider's documentation as of 2026-10-13.
+Target: **Render** (API), **Neon** (Postgres), **Vercel** (dashboard). None require a payment method. This setup was followed end to end on 2026-10-18 and is running live; the steps below follow each provider's documentation and what was learned doing it (see the notes on region, `autoDeploy` and the `/gw` proxy).
 
 ## 1. Database (Neon)
 1. Create a free project at neon.com. Copy the connection string (it looks like `postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require`).
@@ -35,6 +35,19 @@ Chrome) that would break sign-in if the dashboard called the Render domain direc
    the API and `LLMFLOW_ADMIN_KEY` set to the admin key.
 
 Applications (the OpenAI SDK) can call either the Render URL or `https://<your-app>.vercel.app/gw`.
+
+### Keeping the free API awake
+Render's free web service sleeps after about 15 idle minutes, and waking takes 30-60 seconds (the
+Vercel proxy can time out on that first call). `.github/workflows/keepalive.yml` calls `/healthz`
+every 10 minutes to keep it awake.
+- **Hours:** Render's free plan gives 750 instance-hours a month and one always-on service uses
+  about 744, so this works only while it is the **only** free web service on the Render account.
+  Redeploys add a little; watch Render's usage page, and disable the workflow if it gets close.
+- **Not Neon:** `/healthz` does not touch the database on purpose. Neon's free plan has 100
+  compute-hours a month, suspends after 5 idle minutes (not configurable), and resumes in a few
+  hundred milliseconds, so pinging it would exhaust the quota and take the app down.
+- **GitHub pauses scheduled workflows** after about 60 days without repository activity; re-enable
+  it from the Actions tab. Setting a repository variable `API_URL` overrides the address.
 
 ### Search engines (SEO)
 The build generates `robots.txt`, `sitemap.xml`, canonical and Open Graph URLs from one value. The

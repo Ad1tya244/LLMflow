@@ -37,7 +37,8 @@ class ProviderSpec(BaseModel):
     api_key_env: str
     trains_on_data: bool = False
     # Ask for token usage on streamed replies (``stream_options.include_usage``). Turn off for a
-    # provider whose OpenAI-compatible layer rejects that option; streamed usage then reads 0.
+    # provider whose OpenAI-compatible layer rejects that option; streamed token counts are then
+    # estimated (about 4 characters per token) and the route reason says so.
     stream_usage: bool = True
 
 

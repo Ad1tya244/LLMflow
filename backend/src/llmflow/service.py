@@ -15,7 +15,7 @@ from llmflow.catalog import Catalog, ModelSpec
 from llmflow.core.errors import GatewayError, ProviderError, ProviderErrorKind
 from llmflow.providers.base import Provider
 from llmflow.providers.quota import QuotaTracker
-from llmflow.routing.analyzer import analyze
+from llmflow.routing.analyzer import CHARS_PER_TOKEN, analyze
 from llmflow.routing.policy import DEFAULT_PARAMS, RoutePlan, RouterParams, plan_route
 from llmflow.schemas import ChatRequest, Usage
 from llmflow.storage.usage import RequestLog, UsageRepo
@@ -368,12 +368,18 @@ class Gateway:
     ) -> AsyncIterator[str]:
         started = time.perf_counter()
         usage = Usage()
+        reported = False
+        pieces: list[str] = []
         ok = True
         try:
             payloads = _chain(first, rest)
             async for payload in payloads:
                 if '"usage"' in payload:
-                    usage = _usage_from_chunk(payload) or usage
+                    found = _usage_from_chunk(payload)
+                    if found is not None:
+                        usage, reported = found, True
+                else:
+                    pieces.append(_delta_text(payload))
                 yield payload
         except ProviderError as err:
             # Mid-stream failure: cannot fall back after bytes were sent; surface in-band.
@@ -381,6 +387,18 @@ class Gateway:
             self._on_failure(spec, err, scope)
             yield json.dumps({"error": {"type": err.kind.value, "message": err.client_message}})
         finally:
+            reason = plan.reason
+            text = "".join(pieces)
+            if not reported and ok and text:
+                # Some providers send no token counts when streaming. Count an estimate instead of
+                # zero, so costs, quotas and daily budgets still see the traffic.
+                usage = Usage(
+                    prompt_tokens=analyze(request).prompt_tokens_est,
+                    completion_tokens=max(1, len(text) // CHARS_PER_TOKEN),
+                )
+                reason = (
+                    f"{reason}; token counts estimated (the provider sent none while streaming)"
+                )
             if usage.prompt_tokens or usage.completion_tokens:
                 scope.quota.record(spec, usage.prompt_tokens + usage.completion_tokens)
             await self._log(
@@ -390,7 +408,7 @@ class Gateway:
                 usage=usage,
                 latency_ms=(time.perf_counter() - started) * 1000,
                 attempts=attempts,
-                reason=plan.reason,
+                reason=reason,
                 ok=ok,
             )
 
@@ -414,6 +432,18 @@ async def _chain(first: str, rest: AsyncIterator[str]) -> AsyncIterator[str]:
     yield first
     async for item in rest:
         yield item
+
+
+def _delta_text(payload: str) -> str:
+    """Streamed text carried by one SSE payload ('' for [DONE], role-only or tool chunks)."""
+    if payload == "[DONE]":
+        return ""
+    try:
+        choices = json.loads(payload).get("choices") or []
+        content = (choices[0].get("delta") or {}).get("content") if choices else None
+    except (ValueError, AttributeError, IndexError):
+        return ""
+    return content if isinstance(content, str) else ""
 
 
 def _usage_from_chunk(payload: str) -> Usage | None:

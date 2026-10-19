@@ -1,0 +1,35 @@
+# Keeps the free Render API from going to sleep (it sleeps after ~15 idle minutes, and waking takes
+# 30-60 s). It calls /healthz, which does NOT touch the database: Neon's free database has a monthly
+# compute-hour limit and wakes in under a second by itself, so it must not be pinged.
+#
+# Render's free plan gives 750 instance-hours a month; one always-on service uses ~744. That fits
+# ONLY if this is the single free web service on the Render account. If Render's usage page shows
+# the limit getting close (redeploys add a little), disable this workflow or narrow the schedule.
+#
+# Override the address with a repository variable named API_URL (Settings > Variables > Actions).
+name: keep-alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the API health endpoint
+        env:
+          API_URL: ${{ vars.API_URL || 'https://llmflow-api.onrender.com' }}
+        run: |
+          curl --fail --silent --show-error --max-time 100 \
+               --retry 3 --retry-delay 15 --retry-all-errors \
+               "${API_URL%/}/healthz"
+          echo

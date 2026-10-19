@@ -150,7 +150,8 @@ export function Landing() {
 {`from openai import OpenAI
 
 client = OpenAI(
-    base_url="`}<span className="k">{endpoint}</span>{`",  `}<span className="c"># was api.openai.com</span>{`
+    `}<span className="c"># was https://api.openai.com/v1</span>{`
+    base_url="`}<span className="k">{endpoint}</span>{`",
     api_key="llmf_…",
 )
 

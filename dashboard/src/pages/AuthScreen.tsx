@@ -104,7 +104,7 @@ export function AuthScreen({ initialMode = "signin" }: { initialMode?: Mode }) {
   const { signIn, signInMfa, adopt } = useConnection();
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
-  const info = useAsync<PublicInfo | null>(() => api.publicInfo(GATEWAY_URL), []);
+  const info = useAsync<PublicInfo>(() => api.publicInfo(GATEWAY_URL), []);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -232,9 +232,7 @@ export function AuthScreen({ initialMode = "signin" }: { initialMode?: Mode }) {
             <div className="grow">{notice}</div>
           </div>
         )}
-        {info.data === null && !info.loading && (
-          <ErrorBanner message="Cannot reach the gateway. If it was idle it may take a minute to wake up." onRetry={info.reload} />
-        )}
+        {info.error && !info.loading && <ErrorBanner message={info.error.message} onRetry={info.reload} />}
 
         {mode === "signup" && (
           <Field id="ws" label="Workspace name" value={workspace} onChange={setWorkspace} autoComplete="organization" />

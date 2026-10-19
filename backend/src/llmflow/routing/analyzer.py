@@ -24,7 +24,8 @@ _REASONING_RE = re.compile(
 )
 _STRUCTURED_RE = re.compile(r"\b(json|yaml|schema|table|csv)\b", re.I)
 
-_CHARS_PER_TOKEN = 4
+CHARS_PER_TOKEN = 4  # rough size of a token; also used to estimate usage a provider omits
+_CHARS_PER_TOKEN = CHARS_PER_TOKEN
 
 
 def _text(message: Message) -> str:

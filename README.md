@@ -9,14 +9,54 @@ Point any app that speaks the OpenAI API at LLMFlow, add your own Groq (or other
 key once, and LLMFlow picks a model per request, falls back when a provider is rate-limited or down,
 caches deterministic requests, enforces budgets, and shows you what it did and what it cost.
 
-```
- your app  ──(LLMFlow API key)──▶  LLMFlow  ──(your provider key)──▶  Groq / OpenAI / ...
- (OpenAI SDK)                        │ picks the model per request
-                                     │ fallback · cache · budgets · audit log
-```
+<p align="center">
+  <b><a href="https://llm-flow-live.vercel.app">Live demo</a></b> &nbsp;·&nbsp;
+  <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
+  <a href="docs/SECURITY.md">Security</a> &nbsp;·&nbsp;
+  <a href="benchmarks/README.md">Benchmarks</a>
+</p>
 
-> Status: working and tested locally against Groq. Not yet deployed to hosted infrastructure; the
-> deployment files are provided but unexercised. See [Scope and status](#scope-and-status).
+<p align="center">
+  <img src="docs/assets/how-it-works.svg" alt="How a request flows: your app calls LLMFlow with an LLMFlow API key; LLMFlow checks limits, serves repeats from cache, scores difficulty, picks the cheapest model that meets your quality setting and retries on another model if one fails; a provider (Groq, Gemini or OpenAI) answers using your own key." width="100%">
+</p>
+
+> **Status:** deployed on free tiers (Vercel, Render, Neon) and verified live with Groq. Gemini
+> answered a direct test call; streaming through the gateway and OpenAI are untested. Sign-up on
+> the live demo is invite-only, and the API sleeps after about 15 idle minutes, so the first request
+> can take around 30 seconds. See [Scope and status](#scope-and-status).
+
+## Screenshots
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/landing-dark.png">
+    <img src="docs/assets/landing-light.png" alt="The LLMFlow landing page: headline, a short code sample and the response headers that explain each routing decision." width="100%">
+  </picture>
+</p>
+
+The landing page, shown in the visitor's theme. The images below are from the live deployment
+with a few dozen test requests; the dashboard itself sits behind sign-in.
+
+**Playground**: send a request and see how it was routed. The reply is rendered as formatted
+text (tables, math, code), and the Routing panel says which model answered and why.
+
+<p align="center">
+  <img src="docs/assets/playground.png" alt="The Playground: a prompt about shareholder ownership after a new investment, a formatted step-by-step reply with a table and math, and a Routing panel showing it was served by groq-gpt-oss-20b with difficulty 0.12 needing quality 0.36." width="100%">
+</p>
+
+**Overview**: traffic, error rate, tokens, shadow cost, the estimated saving versus always using the
+largest model, cache hit rate, latency, and the model tier each request was routed to.
+
+<p align="center">
+  <img src="docs/assets/overview.png" alt="The Overview page: 41 requests, 0% errors, 29.7K tokens, a 27% cache hit rate, 538 ms median latency, and a chart of requests by model tier." width="100%">
+</p>
+
+**Requests**: every request with its routing decision (model, provider, status, tokens, latency,
+shadow cost, attempts), across Groq and Gemini models.
+
+<p align="center">
+  <img src="docs/assets/requests.png" alt="The Requests page: a table of requests routed to groq-gpt-oss-120b, groq-gpt-oss-20b, groq-qwen3.8-27b and several Gemini models, each with status, tokens, latency, shadow cost and attempts." width="100%">
+</p>
 
 ## Features
 
@@ -228,8 +268,9 @@ not indexable.
 ## Deployment
 
 Free-tier-friendly target: Render (API) + Neon (Postgres) + Vercel (dashboard). Steps and
-a checklist are in [docs/DEPLOY.md](docs/DEPLOY.md). It has not been exercised on live
-infrastructure yet; the repository includes CI (`.github/workflows/ci.yml`) that runs lint, type
+a checklist are in [docs/DEPLOY.md](docs/DEPLOY.md). The free tiers sleep when idle (Render after
+about 15 minutes), which is why the first request after a pause is slow; a scheduled workflow
+(`keepalive.yml`) keeps the API awake. Neon is deliberately not pinged (see the deploy guide). The repository includes CI (`.github/workflows/ci.yml`) that runs lint, type
 checks, tests, `bandit`, `pip-audit` and `npm audit`.
 
 ## Scope and status

@@ -213,3 +213,49 @@ def test_pinned_streaming_reports_the_real_failure(make_client) -> None:  # type
     )
     assert r.status_code == 503
     assert "large failed (auth: API key not valid)" in r.json()["error"]["message"]
+
+
+# --- streamed usage: a provider that reports no token counts is still metered ------------------
+
+
+def _stream_chunks(*words: str, usage: dict[str, int] | None = None) -> list[str]:
+    chunks = [json.dumps({"choices": [{"delta": {"content": w}}]}) for w in words]
+    if usage is not None:
+        chunks.append(json.dumps({"choices": [], "usage": usage}))
+    return [*chunks, "[DONE]"]
+
+
+def test_streamed_reply_without_usage_is_metered_with_an_estimate(make_client) -> None:  # type: ignore[no-untyped-def]
+    reply = ("word " * 40).strip()  # 199 characters, so about 49 tokens by the 4-chars rule
+    c = make_client(FakeProvider([_stream_chunks(*reply.split(" "))]))
+    with c.stream("POST", "/v1/chat/completions", json={**BODY, "stream": True}, headers=AUTH) as r:
+        assert r.status_code == 200
+        "".join(r.iter_text())
+    usage = c.app.state.usage  # type: ignore[attr-defined]
+    summary = c.portal.call(usage.summary)  # type: ignore[union-attr]
+    assert summary.requests == 1
+    assert summary.prompt_tokens >= 1 and 40 <= summary.completion_tokens <= 60
+    assert summary.shadow_cost_usd > 0
+    rows = c.portal.call(usage.since, 0)  # type: ignore[union-attr]
+    assert "token counts estimated" in rows[0].route_reason
+
+
+def test_streamed_usage_reported_by_the_provider_is_used_as_is(make_client) -> None:  # type: ignore[no-untyped-def]
+    chunks = _stream_chunks("a", "b", usage={"prompt_tokens": 7, "completion_tokens": 3})
+    c = make_client(FakeProvider([chunks]))
+    with c.stream("POST", "/v1/chat/completions", json={**BODY, "stream": True}, headers=AUTH) as r:
+        "".join(r.iter_text())
+    usage = c.app.state.usage  # type: ignore[attr-defined]
+    summary = c.portal.call(usage.summary)  # type: ignore[union-attr]
+    assert (summary.prompt_tokens, summary.completion_tokens) == (7, 3)  # exact, not estimated
+    rows = c.portal.call(usage.since, 0)  # type: ignore[union-attr]
+    assert "estimated" not in rows[0].route_reason
+
+
+def test_streamed_estimate_counts_toward_the_daily_token_budget(make_client) -> None:  # type: ignore[no-untyped-def]
+    c = make_client(FakeProvider([_stream_chunks(*("word " * 40).split())]))
+    c.app.state.gateway.budget.daily_tokens = 20  # type: ignore[attr-defined]
+    with c.stream("POST", "/v1/chat/completions", json={**BODY, "stream": True}, headers=AUTH) as r:
+        "".join(r.iter_text())
+    blocked = c.post("/v1/chat/completions", json=BODY, headers=AUTH)
+    assert blocked.status_code == 429 and blocked.json()["error"]["type"] == "budget_exceeded"

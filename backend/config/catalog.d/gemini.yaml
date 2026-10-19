@@ -12,7 +12,8 @@
 # - trains_on_data: Google may use free-tier prompts to improve its products, so "strict privacy"
 #   requests skip Gemini. A paid key is not used that way, but the flag stays conservative.
 # - stream_usage: false because the OpenAI-compatible layer does not document
-#   `stream_options`; streamed Gemini replies are not token-counted. Set true after testing.
+#   `stream_options`; streamed Gemini replies get an ESTIMATED token count (the route
+#   reason says so) instead of exact usage. Set true after testing a streamed call.
 # - No local rate limits are configured: free and paid plans differ, so Google's own 429 and
 #   Retry-After handling applies.
 providers:
