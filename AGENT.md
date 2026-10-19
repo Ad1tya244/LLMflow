@@ -59,6 +59,7 @@ Before designing or building major features, research relevant open-source proje
 - Read this file before starting any development work and follow it throughout.
 - Update it when permanent rules or architectural constraints are established.
 - Do not silently ignore these instructions on later tasks.
+- `llmflow.md` is the single source of truth for the project (what it is, stack, architecture, pipeline, DB, API, config, deployment, limits). Update it in the same change whenever any of those change, and read it before work that needs project facts.
 
 ## 7. Decisions Log
 
@@ -81,3 +82,4 @@ _Record permanent architectural decisions and constraints here as they are made 
 | 2026-10-14 | TOTP MFA is optional per user; a correct password never issues a session when MFA is on. Next planned: email verification/reset, SSO, passkeys. Master key rotation via `npm run rotate-master-key`. | `docs/SECURITY.md` |
 | 2026-10-14 | No model training or local model execution on the developer's machine (hard rule). Routing is evaluated by offline replay of measured outcomes; calibration is one-parameter counting. Documentation leads with measured positive results and claims only what is demonstrated: the router is described as rule-based with a quality dial, and is not described as learned/adaptive until a replay shows lift. Raw measurement files are never deleted or edited to change a verdict. | `benchmarks/README.md` |
 | 2026-10-18 | Catalog models can be `auto_route: false` (selectable by name, never chosen by the router); `groq-qwen3.8-27b` ships that way because it benchmarked below both gpt-oss models at higher cost. Providers can set `stream_usage: false` when the API rejects `stream_options`. Gemini was added via its OpenAI-compatible endpoint; a direct call with a real key on 2026-10-18 returned 200 for gemini-3.1-flash-lite, gemini-3.5-flash-lite and gemini-3.8-flash and 404 for gemini-2.5-flash-lite (legacy, refused for new accounts, so not in the catalog). Streamed replies from providers that send no usage are metered with an estimate (route reason notes it), so budgets and costs still count them. | `backend/config/catalog.d/gemini.yaml`, `backend/config/catalog.yaml` |
+| 2026-10-19 | `llmflow.md` (repo root) is the single source of truth for project information and must be kept in sync with the code; it supersedes stale statements elsewhere (e.g. deployment is live on Vercel + Render + Neon). | One authoritative document avoids drift across README, docs and AGENT.md. |
